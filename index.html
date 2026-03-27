@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Financial AI Chat</title>
+  <style>
+    body {
+      font-family: Arial;
+      background: #f5f5f5;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    #chat {
+      width: 400px;
+      height: 500px;
+      background: white;
+      border-radius: 10px;
+      padding: 10px;
+      overflow-y: auto;
+      box-shadow: 0 0 10px rgba(0,0,0,0.1);
+      margin-top: 20px;
+    }
+
+    .message {
+      margin: 10px 0;
+      padding: 8px;
+      border-radius: 8px;
+    }
+
+    .user {
+      background: #d1e7dd;
+      text-align: right;
+    }
+
+    .bot {
+      background: #e2e3e5;
+      text-align: left;
+    }
+
+    #inputArea {
+      margin-top: 10px;
+    }
+
+    input {
+      padding: 10px;
+      width: 300px;
+    }
+
+    button {
+      padding: 10px;
+    }
+  </style>
+</head>
+<body>
+
+  <h2>💰 Financial AI Chat</h2>
+
+  <div id="chat"></div>
+
+  <div id="inputArea">
+    <input id="message" placeholder="Ask something..." />
+    <button onclick="sendMessage()">Send</button>
+  </div>
+
+  <script>
+    const chatDiv = document.getElementById("chat");
+
+    function addMessage(text, className) {
+      const div = document.createElement("div");
+      div.className = "message " + className;
+      div.innerText = text;
+      chatDiv.appendChild(div);
+      chatDiv.scrollTop = chatDiv.scrollHeight;
+    }
+
+    async function sendMessage() {
+      const input = document.getElementById("message");
+      const message = input.value;
+
+      if (!message) return;
+
+      addMessage(message, "user");
+      input.value = "";
+
+      try {
+        const res = await fetch("https://quixotically-anthroposophic-lorine.ngrok-free.dev/chat", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            message: message
+          })
+        });
+
+        const data = await res.json();
+
+        addMessage(data.reply, "bot");
+
+      } catch (err) {
+        addMessage("Error connecting to server", "bot");
+        console.error(err);
+      }
+    }
+  </script>
+
+</body>
+</html>

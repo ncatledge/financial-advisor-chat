@@ -3,68 +3,81 @@
 <head>
   <title>Financial AI Chat</title>
   <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
       font-family: Arial;
       background: #f5f5f5;
       display: flex;
       flex-direction: column;
       align-items: center;
+      padding: 16px;
+      height: 100vh;
     }
-
+    h2 { margin-bottom: 12px; font-size: 18px; }
+    #startBtn {
+      margin-bottom: 12px;
+      padding: 12px 24px;
+      background: #198754 !important;
+      color: white !important;
+      border: none !important;
+      border-radius: 8px;
+      font-size: 16px;
+      cursor: pointer;
+      width: 100%;
+      max-width: 400px;
+    }
     #chat {
-      width: 400px;
-      height: 500px;
+      width: 100%;
+      max-width: 400px;
+      flex: 1;
       background: white;
       border-radius: 10px;
       padding: 10px;
       overflow-y: auto;
       box-shadow: 0 0 10px rgba(0,0,0,0.1);
-      margin-top: 20px;
+      margin-bottom: 10px;
     }
-
-    .message {
-      margin: 10px 0;
-      padding: 8px;
-      border-radius: 8px;
+    .message { margin: 10px 0; padding: 8px; border-radius: 8px; }
+    .user { background: #d1e7dd; text-align: right; }
+    .bot  { background: #e2e3e5; text-align: left; }
+    #inputRow {
+      display: none;
+      width: 100%;
+      max-width: 400px;
+      flex-direction: row;
+      gap: 8px;
     }
-
-    .user {
-      background: #d1e7dd;
-      text-align: right;
-    }
-
-    .bot {
-      background: #e2e3e5;
-      text-align: left;
-    }
-
-    #inputArea {
-      margin-top: 10px;
-    }
-
-    input {
+    #inputRow input {
+      flex: 1;
       padding: 10px;
-      width: 300px;
+      border: 1px solid #ccc;
+      border-radius: 6px;
     }
-
-    button {
-      padding: 10px;
+    #inputRow button {
+      padding: 10px 16px;
+      background: #198754;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
     }
   </style>
 </head>
 <body>
-
   <h2>💰 Financial AI Chat</h2>
-
+  <button id="startBtn" onclick="startChat()">▶ Start Financial Review</button>
   <div id="chat"></div>
-
-  <div id="inputArea">
-    <input id="message" placeholder="Ask something..." />
+  <div id="inputRow">
+    <input id="message" placeholder="Ask something..." onkeydown="if(event.key==='Enter') sendMessage()" />
     <button onclick="sendMessage()">Send</button>
   </div>
-
   <script>
-    const chatDiv = document.getElementById("chat");
+    const params      = new URLSearchParams(window.location.search);
+    const CLIENT_ID   = params.get("clientId") || "default-user";
+    const CLIENT_NAME = params.get("name") || "there";
+    const SERVER      = "https://financial-advisor-chat-wczs.onrender.com";
+    const ZAPIER_HOOK = "https://hooks.zapier.com/hooks/catch/26878313/unwqe0y/";
+    const chatDiv     = document.getElementById("chat");
 
     function addMessage(text, className) {
       const div = document.createElement("div");
@@ -74,36 +87,57 @@
       chatDiv.scrollTop = chatDiv.scrollHeight;
     }
 
-    async function sendMessage() {
-      const input = document.getElementById("message");
-      const message = input.value;
-
-      if (!message) return;
-
-      addMessage(message, "user");
-      input.value = "";
-
+    async function startChat() {
+      const btn = document.getElementById("startBtn");
+      btn.disabled = true;
+      btn.innerText = "⏳ Loading your data...";
       try {
-        const res = await fetch("https://financial-advisor-chat-wczs.onrender.com/chat", {
+        await fetch(ZAPIER_HOOK, {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json"
-          },
+          body: JSON.stringify({ clientId: CLIENT_ID }),
+          headers: { "Content-Type": "application/json" },
+          mode: "no-cors"
+        });
+        btn.innerText = "⏳ Preparing your review...";
+        await new Promise(resolve => setTimeout(resolve, 4000));
+        const res = await fetch(`${SERVER}/chat`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            message: message
+            clientId: CLIENT_ID,
+            message: `Hello! My name is ${CLIENT_NAME}. Please introduce yourself, summarize my current financial health score, and let me know what I should focus on improving.`
           })
         });
-
+        if (!res.ok) throw new Error(`Server error ${res.status}`);
         const data = await res.json();
-
         addMessage(data.reply, "bot");
+        document.getElementById("inputRow").style.display = "flex";
+        btn.style.display = "none";
+      } catch (err) {
+        addMessage("⚠️ Could not start your session. Please try again.", "bot");
+        btn.disabled = false;
+        btn.innerText = "▶ Start Financial Review";
+      }
+    }
 
+    async function sendMessage() {
+      const input = document.getElementById("message");
+      const message = input.value.trim();
+      if (!message) return;
+      addMessage(message, "user");
+      input.value = "";
+      try {
+        const res = await fetch(`${SERVER}/chat`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ clientId: CLIENT_ID, message })
+        });
+        const data = await res.json();
+        addMessage(data.reply, "bot");
       } catch (err) {
         addMessage("Error connecting to server", "bot");
-        console.error(err);
       }
     }
   </script>
-
 </body>
 </html>

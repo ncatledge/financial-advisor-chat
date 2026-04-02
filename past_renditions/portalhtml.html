@@ -1,0 +1,27 @@
+<button 
+  onclick="startReview()"
+  style="padding:12px 24px; background:#198754; color:white; border:none; border-radius:8px; font-size:16px; cursor:pointer;">
+  ▶ Start Financial Review
+</button>
+
+<script>
+function startReview() {
+  let clientId = "unknown";
+  try {
+    const el = document.getElementById("client-uid");
+    if (el) clientId = el.innerText.trim();
+  } catch(e) {
+    console.log("Error:", e);
+  }
+
+  alert("Sending UID: " + clientId);
+
+  //location for webhook endpoint
+  fetch("https://hooks.zapier.com/hooks/catch/26878313/unwqe0y/", {
+    method: "POST",
+    body: clientId,
+    headers: { "Content-Type": "application/json" },
+    mode: "no-cors"
+  });
+}
+</script>

@@ -48,20 +48,45 @@ app.post("/webhook/data", async (req, res) => {
     return res.status(400).json({ success: false, error: "Missing or invalid financial data" });
   }
 
-  // Compute score
+  // Compute score out of 100
   let financial_score = 0;
   let improvement_areas = [];
 
-  if (debt < income) {
-    financial_score += 1;
+  // 1. Debt-to-income ratio (34 points)
+  // Below 30% = full points, scales down linearly up to 100%+
+  const dtiRatio = income > 0 ? debt / income : 1;
+  if (dtiRatio <= 0.30) {
+    financial_score += 34;
+  } else if (dtiRatio < 1.0) {
+    financial_score += Math.round(34 * (1 - (dtiRatio - 0.30) / 0.70));
+    improvement_areas.push(`Your debt-to-income ratio is ${Math.round(dtiRatio * 100)}%. Aim to get this below 30%.`);
   } else {
-    improvement_areas.push("Reduce your debt to be less than your annual income.");
+    improvement_areas.push(`Your debt ($${debt}) exceeds your income ($${income}). Prioritize debt reduction.`);
   }
 
-  if (savings * 12 > debt) {
-    financial_score += 1;
+  // 2. Savings rate (33 points)
+  // savings / income — above 20% = full points, scales down to 0
+  const savingsRate = income > 0 ? savings / income : 0;
+  if (savingsRate >= 0.20) {
+    financial_score += 33;
+  } else if (savingsRate > 0) {
+    financial_score += Math.round(33 * (savingsRate / 0.20));
+    improvement_areas.push(`Your savings rate is ${Math.round(savingsRate * 100)}%. Try to save at least 20% of your income.`);
   } else {
-    improvement_areas.push("Increase your savings to cover at least 12 months of debt.");
+    improvement_areas.push("You currently have no savings. Start with a small monthly savings goal.");
+  }
+
+  // 3. Emergency fund — savings covers months of income (33 points)
+  // 6+ months = full, 3-6 = partial, under 3 = 0
+  const monthlyIncome = income / 12;
+  const monthsCovered = monthlyIncome > 0 ? savings / monthlyIncome : 0;
+  if (monthsCovered >= 6) {
+    financial_score += 33;
+  } else if (monthsCovered >= 3) {
+    financial_score += Math.round(33 * ((monthsCovered - 3) / 3));
+    improvement_areas.push(`Your emergency fund covers ${monthsCovered.toFixed(1)} months. Aim for at least 6 months of income.`);
+  } else {
+    improvement_areas.push(`Your emergency fund covers only ${monthsCovered.toFixed(1)} months. Build this up to 6 months of income.`);
   }
 
   // Store session
@@ -85,14 +110,14 @@ Name: ${first_name}
 Income: $${income}
 Debt: $${debt}
 Savings: $${savings}
-Financial Score: ${financial_score}/2
+Financial Score: ${financial_score}/100
 
 Improvement Areas:
-${improvement_areas.length ? improvement_areas.join("\n") : "None — great financial health!"}
+${improvement_areas.length ? improvement_areas.join("\n") : "None — excellent financial health!"}
 
 Generate a warm, concise opening greeting for this client. 
 - Address them by first name
-- Give a brief summary of their financial health score (${financial_score}/2)
+- Give a brief summary of their financial health score (${financial_score}/100)
 - Mention 1-2 key observations from their data
 - End by inviting them to ask questions or request suggestions for improvement
 - Keep it to 3-4 sentences, friendly and professional
@@ -170,7 +195,7 @@ Name: ${clientMemory.first_name}
 Income: $${clientMemory.income}
 Debt: $${clientMemory.debt}
 Savings: $${clientMemory.savings}
-Financial Score: ${clientMemory.financial_score}/2
+Financial Score: ${clientMemory.financial_score}/100
 Improvement Areas: ${clientMemory.improvement_areas.length ? clientMemory.improvement_areas.join("; ") : "None"}
 
 Answer the client's questions clearly and helpfully. Be concise, warm, and practical.

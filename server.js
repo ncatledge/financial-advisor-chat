@@ -224,6 +224,18 @@ Answer the client's questions clearly and helpfully. Be concise, warm, and pract
   }
 });
 
+
+// 🔚 End session — clears client from memory
+// TODO: before deleting, persist history to database when conversation saving is added
+app.post("/end-session", (req, res) => {
+  const { clientId } = req.body;
+  if (clientId && sessionData[clientId]) {
+    console.log(`🔚 Session ended for: ${clientId}`);
+    delete sessionData[clientId];
+  }
+  res.json({ success: true });
+});
+
 // 🌐 Serve the chat page for a specific client
 app.get("/chat/:clientId", (req, res) => {
   res.sendFile(path.join(__dirname, "public", "chat.html"));

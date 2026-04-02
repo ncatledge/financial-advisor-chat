@@ -82,6 +82,13 @@
     margin-left: auto;
     box-shadow: 0 0 8px var(--accent);
     animation: pulse 2s infinite;
+    transition: background 0.3s, box-shadow 0.3s;
+  }
+
+  .status-dot.ended {
+    background: var(--text-dim);
+    box-shadow: none;
+    animation: none;
   }
 
   @keyframes pulse {
@@ -235,6 +242,28 @@
   #send-btn:active { transform: scale(0.95); }
   #send-btn:disabled { opacity: 0.3; cursor: not-allowed; }
 
+  #end-btn {
+    display: none;
+    align-items: center;
+    background: transparent;
+    color: var(--text-dim);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 0 14px;
+    height: 44px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    font-weight: 400;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    cursor: pointer;
+    flex-shrink: 0;
+    transition: border-color 0.2s, color 0.2s;
+  }
+
+  #end-btn:hover { border-color: #ff6b6b; color: #ff6b6b; }
+  #end-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+
   .system-msg {
     text-align: center;
     font-size: 11px;
@@ -260,6 +289,41 @@
     position: relative;
     z-index: 1;
   }
+
+  .ended-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(10,10,8,0.88);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10;
+    animation: fadeUp 0.3s ease forwards;
+    opacity: 0;
+  }
+
+  .ended-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 40px 48px;
+    text-align: center;
+    max-width: 380px;
+  }
+
+  .ended-card h2 {
+    font-family: var(--font-display);
+    font-size: 24px;
+    font-weight: 400;
+    color: var(--text);
+    margin-bottom: 12px;
+  }
+
+  .ended-card p {
+    font-size: 13px;
+    color: var(--text-dim);
+    line-height: 1.7;
+  }
 </style>
 </head>
 <body>
@@ -267,7 +331,7 @@
 <header>
   <h1>Financial Advisor</h1>
   <span class="tag">AI</span>
-  <div class="status-dot"></div>
+  <div class="status-dot" id="status-dot"></div>
 </header>
 
 <div id="chat-window">
@@ -275,6 +339,7 @@
 </div>
 
 <div class="input-area">
+  <button id="end-btn" onclick="endSession()">End Session</button>
   <textarea
     id="message-input"
     placeholder="Ask about your financial health..."
@@ -291,15 +356,16 @@
 
 <script>
   const SERVER_URL = "https://financial-advisor-chat-wczs.onrender.com";
-
-  // Read clientId from URL path: /chat/:clientId
   const clientId = window.location.pathname.split("/chat/")[1] || "default-user";
 
   const chatWindow = document.getElementById("chat-window");
   const input = document.getElementById("message-input");
   const sendBtn = document.getElementById("send-btn");
+  const endBtn = document.getElementById("end-btn");
+  const statusDot = document.getElementById("status-dot");
 
-  // Auto-resize textarea
+  let firstName = "";
+
   input.addEventListener("input", () => {
     input.style.height = "auto";
     input.style.height = Math.min(input.scrollHeight, 120) + "px";
@@ -357,10 +423,17 @@
   function enableChat() {
     input.disabled = false;
     sendBtn.disabled = false;
+    endBtn.style.display = "flex";
     input.focus();
   }
 
-  // On load: fetch the pre-generated opening message from the server
+  function disableChat() {
+    input.disabled = true;
+    sendBtn.disabled = true;
+    endBtn.disabled = true;
+    statusDot.classList.add("ended");
+  }
+
   window.addEventListener("load", async () => {
     try {
       const res = await fetch(`${SERVER_URL}/session/${clientId}`);
@@ -371,15 +444,14 @@
       }
 
       const data = await res.json();
+      firstName = data.first_name || "";
 
-      // Clear loading message
       chatWindow.innerHTML = "";
-      chatWindow.appendChild(Object.assign(document.createElement("div"), {
-        className: "system-msg",
-        textContent: "session active"
-      }));
+      const sysMsg = document.createElement("div");
+      sysMsg.className = "system-msg";
+      sysMsg.textContent = "session active";
+      chatWindow.appendChild(sysMsg);
 
-      // Show the pre-generated opening message
       appendMessage("ai", data.openingMessage);
       enableChat();
 
@@ -420,6 +492,35 @@
     sendBtn.disabled = false;
     input.disabled = false;
     input.focus();
+  }
+
+  async function endSession() {
+    endBtn.disabled = true;
+
+    // Call server to clear session from memory
+    // TODO: when conversation saving is implemented, this endpoint
+    // will persist history to a database before clearing memory
+    try {
+      await fetch(`${SERVER_URL}/end-session`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ clientId })
+      });
+    } catch (err) {
+      console.error("End session error:", err);
+    }
+
+    disableChat();
+
+    const overlay = document.createElement("div");
+    overlay.className = "ended-overlay";
+    overlay.innerHTML = `
+      <div class="ended-card">
+        <h2>Session Ended</h2>
+        <p>Thank you, ${firstName}.<br>Your session has ended. You may close this window.</p>
+      </div>
+    `;
+    document.body.appendChild(overlay);
   }
 </script>
 </body>

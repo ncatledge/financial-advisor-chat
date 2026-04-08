@@ -1,8 +1,26 @@
 <button 
+  id="review-btn"
   onclick="startReview()"
   style="padding:12px 24px; background:#198754; color:white; border:none; border-radius:8px; font-size:16px; cursor:pointer;">
   ▶ Start Financial Review
 </button>
+
+<!-- Loading state -->
+<div id="loading-msg" style="display:none; margin-top:16px; font-size:14px; color:#555;">
+  ⏳ Preparing your financial report... please wait.
+</div>
+
+<!-- iframe revealed after delay -->
+<div id="chat-container" style="display:none; margin-top:20px;">
+  <iframe 
+    id="chat-frame"
+    src=""
+    width="100%" 
+    height="600px" 
+    style="border:none; border-radius:12px;"
+    allow="clipboard-write">
+  </iframe>
+</div>
 
 <script>
 function startReview() {
@@ -14,14 +32,32 @@ function startReview() {
     console.log("Error:", e);
   }
 
-  alert("Sending UID: " + clientId);
+  // Disable button to prevent double-clicks
+  const btn = document.getElementById("review-btn");
+  btn.disabled = true;
+  btn.style.opacity = "0.5";
+  btn.style.cursor = "not-allowed";
+  btn.textContent = "⏳ Loading...";
 
-  //location for webhook endpoint
-  fetch("https://hooks.zapier.com/hooks/catch/26878313/unwqe0y/", {
+  // Show loading message
+  document.getElementById("loading-msg").style.display = "block";
+
+  // Fire the Make webhook
+  fetch("https://hook.us2.make.com/rjlgx7f6la6lsqehxl76aegxi7nkp90k", {
     method: "POST",
     body: clientId,
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "text/plain" },
     mode: "no-cors"
   });
+
+  // After 10 seconds, reveal the iframe
+  setTimeout(() => {
+    const chatUrl = "https://financial-advisor-chat-wczs.onrender.com/chat/" + clientId;
+
+    document.getElementById("chat-frame").src = chatUrl;
+    document.getElementById("chat-container").style.display = "block";
+    document.getElementById("loading-msg").style.display = "none";
+    btn.style.display = "none"; // hide button once chat is open
+  }, 10000);
 }
 </script>

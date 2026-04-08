@@ -1,0 +1,63 @@
+<!-- Place this in your SuiteDash portal page -->
+
+<button 
+  id="review-btn"
+  onclick="startReview()"
+  style="padding:12px 24px; background:#198754; color:white; border:none; border-radius:8px; font-size:16px; cursor:pointer;">
+  ▶ Start Financial Review
+</button>
+
+<!-- Loading state -->
+<div id="loading-msg" style="display:none; margin-top:16px; font-size:14px; color:#555;">
+  ⏳ Preparing your financial report... please wait.
+</div>
+
+<!-- iframe revealed after delay -->
+<div id="chat-container" style="display:none; margin-top:20px;">
+  <iframe 
+    id="chat-frame"
+    src=""
+    width="100%" 
+    height="600px" 
+    style="border:none; border-radius:12px;"
+    allow="clipboard-write">
+  </iframe>
+</div>
+
+<script>
+function startReview() {
+  let clientId = "unknown";
+  try {
+    const el = document.getElementById("client-uid");
+    if (el) clientId = el.innerText.trim();
+  } catch(e) {
+    console.log("Error:", e);
+  }
+
+  const btn = document.getElementById("review-btn");
+  btn.disabled = true;
+  btn.style.opacity = "0.5";
+  btn.style.cursor = "not-allowed";
+  btn.textContent = "⏳ Loading...";
+
+  document.getElementById("loading-msg").style.display = "block";
+
+  // Fire the Make webhook
+  fetch("https://hook.us2.make.com/rjlgx7f6la6lsqehxl76aegxi7nkp90k", {
+    method: "POST",
+    body: clientId,
+    headers: { "Content-Type": "text/plain" },
+    mode: "no-cors"
+  });
+
+  // After 7 seconds reveal the iframe
+  // ⚠️ Replace YOUR-PROJECT with your actual Vercel project name
+  setTimeout(() => {
+    const chatUrl = "https://YOUR-PROJECT.vercel.app/chat/" + clientId;
+    document.getElementById("chat-frame").src = chatUrl;
+    document.getElementById("chat-container").style.display = "block";
+    document.getElementById("loading-msg").style.display = "none";
+    btn.style.display = "none";
+  }, 7000);
+}
+</script>

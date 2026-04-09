@@ -1,11 +1,17 @@
-<!-- Place this in your SuiteDash portal page -->
-
 <button 
   id="review-btn"
   onclick="startReview()"
   style="padding:12px 24px; background:#198754; color:white; border:none; border-radius:8px; font-size:16px; cursor:pointer;">
   ▶ Start Financial Review
 </button>
+
+<!-- Debug panel — remove once confirmed working -->
+<div id="debug-panel" style="margin-top:12px; padding:10px 14px; background:#f4f4f4; border:1px solid #ddd; border-radius:6px; font-family:monospace; font-size:12px; color:#333; display:none;">
+  <strong>🛠 Debug Info</strong><br>
+  <span id="debug-clientid"></span><br>
+  <span id="debug-bool"></span><br>
+  <span id="debug-action"></span>
+</div>
 
 <!-- Loading state (only shown for new clients) -->
 <div id="loading-msg" style="display:none; margin-top:16px; font-size:14px; color:#555;">
@@ -33,20 +39,32 @@ const VERCEL_URL = "https://financial-advisor-chat-five.vercel.app";
 const MAKE_WEBHOOK = "https://hook.us2.make.com/rjlgx7f6la6lsqehxl76aegxi7nkp90k";
 
 function startReview() {
-  // Scrape clientId and bool from page
+  // ── Scrape values from page ──────────────────────────────
   let clientId = "unknown";
-  let conversationBool = 0;
+  let conversationBool = -1; // -1 means not found
 
   try {
     const uidEl = document.getElementById("client-uid");
     if (uidEl) clientId = uidEl.innerText.trim();
 
     const boolEl = document.getElementById("ai-bool");
-    if (boolEl) conversationBool = parseInt(boolEl.innerText.trim(), 10);
+    if (boolEl) {
+      const raw = boolEl.innerText.trim();
+      conversationBool = raw === "" ? -1 : parseInt(raw, 10);
+    }
   } catch(e) {
     console.log("Scrape error:", e);
   }
 
+  // ── Show debug panel ─────────────────────────────────────
+  const debugPanel = document.getElementById("debug-panel");
+  debugPanel.style.display = "block";
+  document.getElementById("debug-clientid").innerHTML =
+    `📋 Client ID: <strong>${clientId}</strong>`;
+  document.getElementById("debug-bool").innerHTML =
+    `🔢 AI Conversation Bool: <strong>${conversationBool === -1 ? "NOT FOUND / EMPTY" : conversationBool}</strong>`;
+
+  // ── Disable button ───────────────────────────────────────
   const btn = document.getElementById("review-btn");
   btn.disabled = true;
   btn.style.opacity = "0.5";
@@ -55,14 +73,24 @@ function startReview() {
   const chatUrl = `${VERCEL_URL}/chat/${clientId}`;
 
   if (conversationBool === 1) {
-    // ── Returning client — load chat immediately from Supabase ──
+    // ── Returning client ─────────────────────────────────
+    document.getElementById("debug-action").innerHTML =
+      `✅ Action: <strong>Bool is 1 — skipping webhook, loading existing conversation</strong>`;
+
     btn.textContent = "↩ Loading your conversation...";
     document.getElementById("chat-frame").src = chatUrl;
     document.getElementById("chat-container").style.display = "block";
     btn.style.display = "none";
 
   } else {
-    // ── New client — fire Make webhook, wait 7s, then load chat ──
+    // ── New client ───────────────────────────────────────
+    const reason = conversationBool === 0
+      ? "Bool is 0 — firing webhook"
+      : "Bool not found — firing webhook as fallback";
+
+    document.getElementById("debug-action").innerHTML =
+      `🚀 Action: <strong>${reason}</strong>`;
+
     btn.textContent = "⏳ Loading...";
     document.getElementById("loading-msg").style.display = "block";
 
@@ -71,6 +99,12 @@ function startReview() {
       body: clientId,
       headers: { "Content-Type": "text/plain" },
       mode: "no-cors"
+    }).then(() => {
+      document.getElementById("debug-action").innerHTML +=
+        `<br>📡 Webhook fired at: <strong>${new Date().toLocaleTimeString()}</strong>`;
+    }).catch(err => {
+      document.getElementById("debug-action").innerHTML +=
+        `<br>❌ Webhook error: <strong>${err.message}</strong>`;
     });
 
     setTimeout(() => {

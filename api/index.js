@@ -15,9 +15,16 @@ const openai = new OpenAI({
 });
 
 // ── Supabase ─────────────────────────────────────────────
+// Uses secret API key — never commit this value, only via environment variables
 const supabase = createClient(
   process.env.SUPABASE_URL,
-  process.env.SUPABASE_KEY
+  process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_KEY,
+  {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false
+    }
+  }
 );
 
 const BASE_URL = process.env.BASE_URL || "https://financial-advisor-chat-five.vercel.app";
@@ -200,7 +207,7 @@ Keep responses to 2-4 sentences unless a longer answer is truly necessary.`;
         ...history
       ],
       temperature: 0.2,
-      max_tokens: 300
+      max_tokens: 200
     });
 
     const botReply = completion.choices[0].message.content;

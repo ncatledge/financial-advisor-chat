@@ -120,6 +120,12 @@
     opacity: 0;
   }
 
+  /* History messages load without animation */
+  .message-row.history {
+    animation: none;
+    opacity: 1;
+  }
+
   @keyframes fadeUp {
     from { opacity: 0; transform: translateY(8px); }
     to { opacity: 1; transform: translateY(0); }
@@ -281,6 +287,12 @@
     opacity: 0.3;
   }
 
+  /* Returning session divider */
+  .system-msg.returning {
+    color: var(--accent-dim);
+    padding-top: 20px;
+  }
+
   .error-msg {
     text-align: center;
     font-size: 12px;
@@ -355,7 +367,7 @@
 </div>
 
 <script>
-  const SERVER_URL = "https://financial-advisor-chat-five.vercel.app"
+  const SERVER_URL = "https://financial-advisor-chat-five.vercel.app";
   const clientId = window.location.pathname.split("/chat/")[1] || "default-user";
 
   const chatWindow = document.getElementById("chat-window");
@@ -378,9 +390,16 @@
     }
   });
 
-  function appendMessage(role, text) {
+  function addSystemMsg(text, isReturning = false) {
+    const el = document.createElement("div");
+    el.className = isReturning ? "system-msg returning" : "system-msg";
+    el.textContent = text;
+    chatWindow.appendChild(el);
+  }
+
+  function appendMessage(role, text, fromHistory = false) {
     const row = document.createElement("div");
-    row.className = `message-row ${role}`;
+    row.className = `message-row ${role}${fromHistory ? " history" : ""}`;
 
     const avatar = document.createElement("div");
     avatar.className = `avatar ${role}`;
@@ -434,6 +453,7 @@
     statusDot.classList.add("ended");
   }
 
+  // ── Load session on page open ─────────────────────────────
   window.addEventListener("load", async () => {
     try {
       const res = await fetch(`${SERVER_URL}/session/${clientId}`);
@@ -445,14 +465,26 @@
 
       const data = await res.json();
       firstName = data.first_name || "";
-
       chatWindow.innerHTML = "";
-      const sysMsg = document.createElement("div");
-      sysMsg.className = "system-msg";
-      sysMsg.textContent = "session active";
-      chatWindow.appendChild(sysMsg);
 
-      appendMessage("ai", data.openingMessage);
+      if (data.isReturning && data.history && data.history.length > 1) {
+        // ── Returning client — render full history ──────────
+        addSystemMsg("previous session");
+
+        data.history.forEach(msg => {
+          const role = msg.role === "assistant" ? "ai" : "user";
+          appendMessage(role, msg.content, true);
+        });
+
+        // Divider between old and new messages
+        addSystemMsg("returning session", true);
+
+      } else {
+        // ── New client — show opening message only ──────────
+        addSystemMsg("session active");
+        appendMessage("ai", data.openingMessage);
+      }
+
       enableChat();
 
     } catch (err) {
@@ -497,9 +529,6 @@
   async function endSession() {
     endBtn.disabled = true;
 
-    // Call server to clear session from memory
-    // TODO: when conversation saving is implemented, this endpoint
-    // will persist history to a database before clearing memory
     try {
       await fetch(`${SERVER_URL}/end-session`, {
         method: "POST",

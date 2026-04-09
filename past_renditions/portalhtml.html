@@ -1,3 +1,5 @@
+<!-- Place this in your SuiteDash portal page -->
+
 <button 
   id="review-btn"
   onclick="startReview()"
@@ -5,7 +7,7 @@
   ▶ Start Financial Review
 </button>
 
-<!-- Loading state -->
+<!-- Loading state (only shown for new clients) -->
 <div id="loading-msg" style="display:none; margin-top:16px; font-size:14px; color:#555;">
   ⏳ Preparing your financial report... please wait.
 </div>
@@ -22,42 +24,61 @@
   </iframe>
 </div>
 
+<!-- SuiteDash dynamic placeholders — hidden from view -->
+<span id="client-uid" style="display:none;">{{uid}}</span>
+<span id="ai-bool" style="display:none;">{{AIConversationBool}}</span>
+
 <script>
+const VERCEL_URL = "https://financial-advisor-chat-five.vercel.app";
+const MAKE_WEBHOOK = "https://hook.us2.make.com/rjlgx7f6la6lsqehxl76aegxi7nkp90k";
+
 function startReview() {
+  // Scrape clientId and bool from page
   let clientId = "unknown";
+  let conversationBool = 0;
+
   try {
-    const el = document.getElementById("client-uid");
-    if (el) clientId = el.innerText.trim();
+    const uidEl = document.getElementById("client-uid");
+    if (uidEl) clientId = uidEl.innerText.trim();
+
+    const boolEl = document.getElementById("ai-bool");
+    if (boolEl) conversationBool = parseInt(boolEl.innerText.trim(), 10);
   } catch(e) {
-    console.log("Error:", e);
+    console.log("Scrape error:", e);
   }
 
-  // Disable button to prevent double-clicks
   const btn = document.getElementById("review-btn");
   btn.disabled = true;
   btn.style.opacity = "0.5";
   btn.style.cursor = "not-allowed";
-  btn.textContent = "⏳ Loading...";
 
-  // Show loading message
-  document.getElementById("loading-msg").style.display = "block";
+  const chatUrl = `${VERCEL_URL}/chat/${clientId}`;
 
-  // Fire the Make webhook
-  fetch("https://hook.us2.make.com/rjlgx7f6la6lsqehxl76aegxi7nkp90k", {
-    method: "POST",
-    body: clientId,
-    headers: { "Content-Type": "text/plain" },
-    mode: "no-cors"
-  });
-
-  // After 10 seconds, reveal the iframe
-  setTimeout(() => {
-    const chatUrl = "https://financial-advisor-chat-wczs.onrender.com/chat/" + clientId;
-
+  if (conversationBool === 1) {
+    // ── Returning client — load chat immediately from Supabase ──
+    btn.textContent = "↩ Loading your conversation...";
     document.getElementById("chat-frame").src = chatUrl;
     document.getElementById("chat-container").style.display = "block";
-    document.getElementById("loading-msg").style.display = "none";
-    btn.style.display = "none"; // hide button once chat is open
-  }, 10000);
+    btn.style.display = "none";
+
+  } else {
+    // ── New client — fire Make webhook, wait 7s, then load chat ──
+    btn.textContent = "⏳ Loading...";
+    document.getElementById("loading-msg").style.display = "block";
+
+    fetch(MAKE_WEBHOOK, {
+      method: "POST",
+      body: clientId,
+      headers: { "Content-Type": "text/plain" },
+      mode: "no-cors"
+    });
+
+    setTimeout(() => {
+      document.getElementById("chat-frame").src = chatUrl;
+      document.getElementById("chat-container").style.display = "block";
+      document.getElementById("loading-msg").style.display = "none";
+      btn.style.display = "none";
+    }, 7000);
+  }
 }
 </script>

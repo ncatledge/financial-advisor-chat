@@ -20,7 +20,7 @@ const supabase = createClient(
   process.env.SUPABASE_KEY
 );
 
-const BASE_URL = process.env.BASE_URL || "https://your-project.vercel.app";
+const BASE_URL = process.env.BASE_URL || "https://financial-advisor-chat-five.vercel.app";
 
 // ── Helpers ───────────────────────────────────────────────
 function normalizeBody(body) {
@@ -81,7 +81,7 @@ function buildOpeningMessage(first_name, financial_score, improvement_areas) {
   return `Hello ${first_name}, your financial health score is ${financial_score}/100.\n\nKey areas to focus on:\n${areas}\n\nFeel free to ask me any questions or request suggestions for improvement.`;
 }
 
-// ── Supabase read/write helpers ───────────────────────────
+// ── Supabase helpers ──────────────────────────────────────
 async function getSession(clientId) {
   const { data, error } = await supabase
     .from("sessions")
@@ -123,7 +123,6 @@ app.post("/webhook/data", async (req, res) => {
   const { score: financial_score, improvement_areas } = computeScore(income, debt, savings);
   const openingMessage = buildOpeningMessage(first_name, financial_score, improvement_areas);
 
-  // Save new session to Supabase — wipes previous session for this client
   await saveSession({
     client_id: clientId,
     first_name,
@@ -132,7 +131,6 @@ app.post("/webhook/data", async (req, res) => {
     savings,
     financial_score,
     improvement_areas,
-    // Seed history with opening message so AI has context from the start
     history: [{ role: "assistant", content: openingMessage }],
     updated_at: new Date().toISOString()
   });
@@ -152,6 +150,7 @@ app.get("/session/:clientId", async (req, res) => {
     return res.status(404).json({ error: "Session not found" });
   }
 
+  // Returning = history has more than just the opening message
   const isReturning = session.history && session.history.length > 1;
   const openingMessage = buildOpeningMessage(
     session.first_name,
@@ -174,7 +173,6 @@ app.post("/chat", async (req, res) => {
   if (!clientId) clientId = "default-user";
   if (!message) return res.status(400).send("Missing chat message");
 
-  // Load session from Supabase
   const session = await getSession(clientId);
   if (!session) return res.status(400).send("Client financial data not found");
 
@@ -191,7 +189,8 @@ Savings: $${session.savings}
 Financial Score: ${session.financial_score}/100
 Improvement Areas: ${session.improvement_areas.length ? session.improvement_areas.join("; ") : "None"}
 
-Answer the client's questions clearly and helpfully. Be concise, warm, and practical.`;
+Answer the client's questions clearly and helpfully. Be concise and practical.
+Keep responses to 2-4 sentences unless a longer answer is truly necessary.`;
 
   try {
     const completion = await openai.chat.completions.create({
@@ -201,12 +200,12 @@ Answer the client's questions clearly and helpfully. Be concise, warm, and pract
         ...history
       ],
       temperature: 0.2,
+      max_tokens: 300
     });
 
     const botReply = completion.choices[0].message.content;
     history.push({ role: "assistant", content: botReply });
 
-    // Save updated history back to Supabase
     await saveSession({
       client_id: clientId,
       first_name: session.first_name,
@@ -227,7 +226,7 @@ Answer the client's questions clearly and helpfully. Be concise, warm, and pract
   }
 });
 
-// 🔚 End session — marks session as ended in Supabase, keeps history
+// 🔚 End session — keeps history in Supabase, just updates timestamp
 app.post("/end-session", async (req, res) => {
   const { clientId } = req.body;
 

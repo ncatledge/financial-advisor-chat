@@ -196,8 +196,10 @@ Savings: $${session.savings}
 Financial Score: ${session.financial_score}/100
 Improvement Areas: ${session.improvement_areas.length ? session.improvement_areas.join("; ") : "None"}
 
-Answer the client's questions clearly and helpfully. Be concise and practical.
-Keep responses to 2-4 sentences unless a longer answer is truly necessary.`;
+STRICT RULES — you must follow these exactly:
+- Respond in 2 sentences maximum, no exceptions
+- No bullet points, no numbered lists, no bold text
+- Be direct and specific to this client's actual numbers`;
 
   try {
     const completion = await openai.chat.completions.create({
@@ -207,7 +209,7 @@ Keep responses to 2-4 sentences unless a longer answer is truly necessary.`;
         ...history
       ],
       temperature: 0.2,
-      max_tokens: 200
+      max_tokens: 100
     });
 
     const botReply = completion.choices[0].message.content;

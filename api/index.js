@@ -247,6 +247,32 @@ app.get("/session/:clientId", async (req, res) => {
     session.improvement_areas
   );
 
+  // Guarantee the Financial Score conversation exists for every client.
+  // Handles clients whose sessions were created before the conversations table,
+  // so the sidebar always has at least one entry on first load.
+  const { data: existingConv } = await supabase
+    .from("conversations")
+    .select("id")
+    .eq("client_id", clientId)
+    .eq("is_protected", true)
+    .maybeSingle();
+
+  if (!existingConv) {
+    const { data: newConv } = await supabase
+      .from("conversations")
+      .insert({ client_id: clientId, title: "Financial Score", is_protected: true })
+      .select()
+      .single();
+
+    if (newConv) {
+      await supabase.from("messages").insert({
+        conversation_id: newConv.id,
+        role: "assistant",
+        content: openingMessage
+      });
+    }
+  }
+
   return res.json({
     first_name: session.first_name,
     financial_score: session.financial_score,

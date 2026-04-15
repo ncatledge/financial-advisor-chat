@@ -186,28 +186,45 @@ app.post("/webhook/data", async (req, res) => {
     updated_at: new Date().toISOString()
   });
 
-  // Create the default first conversation for this client
-  const { data: existing } = await supabase
+  // Find or create the protected Financial Score conversation.
+  // This conversation is permanent — every webhook call appends the latest
+  // opening message so the client always has an up-to-date financial record.
+  let financialScoreConvId;
+
+  const { data: existingConv } = await supabase
     .from("conversations")
     .select("id")
     .eq("client_id", clientId)
-    .limit(1);
+    .eq("is_protected", true)
+    .limit(1)
+    .single();
 
-  if (!existing || existing.length === 0) {
-    const { data: conv } = await supabase
+  if (existingConv) {
+    // Conversation already exists — reuse it
+    financialScoreConvId = existingConv.id;
+  } else {
+    // First time this client has been set up — create the conversation
+    const { data: newConv } = await supabase
       .from("conversations")
       .insert({ client_id: clientId, title: "Financial Score", is_protected: true })
       .select()
       .single();
-
-    if (conv) {
-      await supabase.from("messages").insert({
-        conversation_id: conv.id,
-        role: "assistant",
-        content: openingMessage
-      });
-    }
+    financialScoreConvId = newConv.id;
   }
+
+  // Always save the opening message so the conversation stays current.
+  // If financial data changes, a new entry is appended as a record.
+  await supabase.from("messages").insert({
+    conversation_id: financialScoreConvId,
+    role: "assistant",
+    content: openingMessage
+  });
+
+  // Bump the conversation timestamp so it surfaces at the top of the sidebar
+  await supabase
+    .from("conversations")
+    .update({ updated_at: new Date().toISOString() })
+    .eq("id", financialScoreConvId);
 
   console.log(`✅ Session saved for: ${clientId} | Score: ${financial_score}/100`);
 

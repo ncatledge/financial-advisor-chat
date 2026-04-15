@@ -196,7 +196,7 @@ app.post("/webhook/data", async (req, res) => {
   if (!existing || existing.length === 0) {
     const { data: conv } = await supabase
       .from("conversations")
-      .insert({ client_id: clientId, title: "Financial Overview" })
+      .insert({ client_id: clientId, title: "Financial Score", is_protected: true })
       .select()
       .single();
 
@@ -246,7 +246,7 @@ app.get("/conversations/:clientId", async (req, res) => {
 
   const { data, error } = await supabase
     .from("conversations")
-    .select("id, title, created_at, updated_at")
+    .select("id, title, is_protected, created_at, updated_at")
     .eq("client_id", clientId)
     .order("updated_at", { ascending: false });
 
@@ -283,12 +283,13 @@ app.delete("/conversations/:conversationId", async (req, res) => {
   // Verify this conversation belongs to the requesting client
   const { data: conv, error: fetchError } = await supabase
     .from("conversations")
-    .select("client_id")
+    .select("client_id, is_protected")
     .eq("id", conversationId)
     .single();
 
   if (fetchError || !conv) return res.status(404).json({ error: "Conversation not found" });
   if (conv.client_id !== clientId) return res.status(403).json({ error: "Unauthorized" });
+  if (conv.is_protected) return res.status(403).json({ error: "This conversation cannot be deleted" });
 
   const { error } = await supabase
     .from("conversations")

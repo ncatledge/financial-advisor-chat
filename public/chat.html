@@ -469,7 +469,7 @@
   <!-- ── Sidebar: conversation threads ───────────────────── -->
   <aside class="sidebar">
     <div class="sidebar-header">
-      <span>Threads</span>
+      <span>Conversations</span>
       <button id="new-conv-btn" onclick="newConversation()">+ New</button>
     </div>
     <div id="conversation-list">
@@ -664,23 +664,28 @@
       info.appendChild(title);
       info.appendChild(time);
 
-      // Delete button
-      const del = document.createElement("button");
-      del.className = "conv-delete";
-      del.title = "Delete conversation";
-      del.appendChild(makeTrashIcon());
-
-      // Select thread on row click
+      // Select conversation on row click
       item.addEventListener("click", () => selectConversation(conv.id));
 
-      // Delete button — stop propagation so it doesn't trigger row click
-      del.addEventListener("click", (e) => {
-        e.stopPropagation();
-        deleteConversation(conv.id);
-      });
-
+      // Info always comes first
       item.appendChild(info);
-      item.appendChild(del);
+
+      // Delete button — hidden for protected conversations (e.g. Financial Score)
+      if (!conv.is_protected) {
+        const del = document.createElement("button");
+        del.className = "conv-delete";
+        del.title = "Delete conversation";
+        del.appendChild(makeTrashIcon());
+
+        // Stop propagation so delete click doesn't also select the conversation
+        del.addEventListener("click", (e) => {
+          e.stopPropagation();
+          deleteConversation(conv.id);
+        });
+
+        item.appendChild(del);
+      }
+
       convList.appendChild(item);
     });
   }

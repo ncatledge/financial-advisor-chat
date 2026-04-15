@@ -291,6 +291,7 @@ app.get("/conversations/:clientId", async (req, res) => {
     .from("conversations")
     .select("id, title, is_protected, created_at, updated_at")
     .eq("client_id", clientId)
+    .order("is_protected", { ascending: false })  // Financial Score always first
     .order("updated_at", { ascending: false });
 
   if (error) return res.status(500).json({ error: "Failed to load conversations" });
@@ -340,6 +341,33 @@ app.delete("/conversations/:conversationId", async (req, res) => {
     .eq("id", conversationId);
 
   if (error) return res.status(500).json({ error: "Failed to delete conversation" });
+
+  res.json({ success: true });
+});
+
+// ✏️ Rename a conversation (client must own it, protected conversations excluded)
+app.patch("/conversations/:conversationId", async (req, res) => {
+  const { conversationId } = req.params;
+  const { clientId, title } = req.body;
+
+  if (!clientId || !title?.trim()) return res.status(400).json({ error: "clientId and title required" });
+
+  const { data: conv, error: fetchError } = await supabase
+    .from("conversations")
+    .select("client_id, is_protected")
+    .eq("id", conversationId)
+    .single();
+
+  if (fetchError || !conv) return res.status(404).json({ error: "Conversation not found" });
+  if (conv.client_id !== clientId) return res.status(403).json({ error: "Unauthorized" });
+  if (conv.is_protected) return res.status(403).json({ error: "This conversation cannot be renamed" });
+
+  const { error } = await supabase
+    .from("conversations")
+    .update({ title: title.trim() })
+    .eq("id", conversationId);
+
+  if (error) return res.status(500).json({ error: "Failed to rename conversation" });
 
   res.json({ success: true });
 });

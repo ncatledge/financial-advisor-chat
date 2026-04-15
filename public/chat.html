@@ -472,6 +472,59 @@
   }
 
   .resume-btn:hover { opacity: 0.85; }
+
+  /* ── Hamburger (mobile only) ─────────────────────────────── */
+  #sidebar-toggle {
+    display: none;
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    padding: 4px;
+    color: var(--text-dim);
+    margin-left: auto;
+    margin-right: 8px;
+  }
+
+  /* ── Mobile sidebar overlay ──────────────────────────────── */
+  @media (max-width: 640px) {
+    #sidebar-toggle { display: flex; align-items: center; }
+
+    .sidebar {
+      position: fixed;
+      inset: 0 auto 0 0;
+      width: 80vw;
+      max-width: 280px;
+      z-index: 20;
+      transform: translateX(-100%);
+      transition: transform 0.25s ease;
+    }
+
+    .sidebar.open { transform: translateX(0); }
+
+    /* Backdrop behind open sidebar */
+    .sidebar-backdrop {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(10,10,8,0.6);
+      z-index: 19;
+    }
+
+    .sidebar-backdrop.visible { display: block; }
+  }
+
+  /* ── Inline rename input ─────────────────────────────────── */
+  .conv-rename-input {
+    background: transparent;
+    border: none;
+    border-bottom: 1px solid var(--accent-dim);
+    color: var(--text);
+    font-family: var(--font-mono);
+    font-size: 12px;
+    outline: none;
+    width: 100%;
+    padding: 1px 0;
+  }
 </style>
 </head>
 <body>
@@ -479,8 +532,17 @@
 <header>
   <h1>Financial Advisor</h1>
   <span class="tag">AI</span>
+  <!-- Hamburger — visible on mobile only -->
+  <button id="sidebar-toggle" onclick="toggleSidebar()" aria-label="Toggle conversations">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+      <line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/>
+    </svg>
+  </button>
   <div class="status-dot" id="status-dot"></div>
 </header>
+
+<!-- Backdrop for mobile sidebar -->
+<div class="sidebar-backdrop" id="sidebar-backdrop" onclick="toggleSidebar()"></div>
 
 <div class="app-layout">
 
@@ -616,6 +678,23 @@
     statusDot.classList.add("ended");
   }
 
+  // ── Mobile sidebar toggle ─────────────────────────────────
+  function toggleSidebar() {
+    const sidebar = document.querySelector(".sidebar");
+    const backdrop = document.getElementById("sidebar-backdrop");
+    sidebar.classList.toggle("open");
+    backdrop.classList.toggle("visible");
+  }
+
+  function closeSidebarOnMobile() {
+    if (window.innerWidth <= 640) {
+      const sidebar = document.querySelector(".sidebar");
+      const backdrop = document.getElementById("sidebar-backdrop");
+      sidebar.classList.remove("open");
+      backdrop.classList.remove("visible");
+    }
+  }
+
   // ── Format relative time for sidebar timestamps ───────────
   function relativeTime(dateStr) {
     const diff = Date.now() - new Date(dateStr).getTime();
@@ -658,6 +737,43 @@
     return svg;
   }
 
+  // ── Inline rename ─────────────────────────────────────────
+  function startRename(titleEl, convId) {
+    const original = titleEl.textContent;
+
+    const input = document.createElement("input");
+    input.type = "text";
+    input.className = "conv-rename-input";
+    input.value = original;
+
+    titleEl.replaceWith(input);
+    input.focus();
+    input.select();
+
+    async function commit() {
+      const newTitle = input.value.trim() || original;
+
+      if (newTitle !== original) {
+        await fetch(`${SERVER_URL}/conversations/${convId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ clientId, title: newTitle })
+        });
+        // Update local state so sidebar re-render reflects the change
+        const conv = conversations.find(c => c.id === convId);
+        if (conv) conv.title = newTitle;
+      }
+
+      renderConversations();
+    }
+
+    input.addEventListener("blur", commit);
+    input.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") { e.preventDefault(); input.blur(); }
+      if (e.key === "Escape") { input.value = original; input.blur(); }
+    });
+  }
+
   // ── Render the sidebar conversation list ──────────────────
   function renderConversations() {
     convList.innerHTML = "";
@@ -675,6 +791,15 @@
       title.className = "conv-title";
       title.textContent = conv.title; // textContent — never innerHTML for user data
 
+      // Double-click to rename (protected conversations excluded)
+      if (!conv.is_protected) {
+        title.title = "Double-click to rename";
+        title.addEventListener("dblclick", (e) => {
+          e.stopPropagation();
+          startRename(title, conv.id);
+        });
+      }
+
       const time = document.createElement("div");
       time.className = "conv-time";
       time.textContent = relativeTime(conv.updated_at);
@@ -682,8 +807,11 @@
       info.appendChild(title);
       info.appendChild(time);
 
-      // Select conversation on row click
-      item.addEventListener("click", () => selectConversation(conv.id));
+      // Select conversation on row click (close sidebar on mobile)
+      item.addEventListener("click", () => {
+        selectConversation(conv.id);
+        closeSidebarOnMobile();
+      });
 
       // Info always comes first
       item.appendChild(info);

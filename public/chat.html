@@ -53,6 +53,7 @@
     align-items: baseline;
     gap: 14px;
     background: var(--bg);
+    flex-shrink: 0;
   }
 
   header h1 {
@@ -96,6 +97,130 @@
     50% { opacity: 0.4; }
   }
 
+  /* ── App layout: sidebar + main ─────────────────────────── */
+  .app-layout {
+    display: flex;
+    flex: 1;
+    overflow: hidden;
+    position: relative;
+    z-index: 1;
+  }
+
+  /* ── Sidebar ─────────────────────────────────────────────── */
+  .sidebar {
+    width: 220px;
+    flex-shrink: 0;
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    background: var(--surface);
+    overflow: hidden;
+  }
+
+  .sidebar-header {
+    padding: 14px 14px 12px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-shrink: 0;
+  }
+
+  .sidebar-header span {
+    font-size: 10px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--text-dim);
+  }
+
+  #new-conv-btn {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--accent);
+    border-radius: 4px;
+    padding: 4px 10px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    cursor: pointer;
+    transition: border-color 0.2s;
+  }
+
+  #new-conv-btn:hover { border-color: var(--accent-dim); }
+
+  #conversation-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 6px 0;
+  }
+
+  #conversation-list::-webkit-scrollbar { width: 3px; }
+  #conversation-list::-webkit-scrollbar-track { background: transparent; }
+  #conversation-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+  .conv-item {
+    display: flex;
+    align-items: center;
+    padding: 10px 12px;
+    cursor: pointer;
+    border-left: 2px solid transparent;
+    transition: background 0.15s, border-color 0.15s;
+    gap: 8px;
+  }
+
+  .conv-item:hover { background: rgba(201,242,100,0.04); }
+
+  .conv-item.active {
+    border-left-color: var(--accent);
+    background: rgba(201,242,100,0.06);
+  }
+
+  .conv-info {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .conv-title {
+    font-size: 12px;
+    color: var(--text);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .conv-item.active .conv-title { color: var(--accent); }
+
+  .conv-time {
+    font-size: 10px;
+    color: var(--text-dim);
+    margin-top: 3px;
+  }
+
+  /* Delete button — visible on hover only */
+  .conv-delete {
+    background: transparent;
+    border: none;
+    color: var(--text-dim);
+    cursor: pointer;
+    padding: 3px;
+    border-radius: 3px;
+    opacity: 0;
+    transition: opacity 0.15s, color 0.15s;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+  }
+
+  .conv-item:hover .conv-delete { opacity: 1; }
+  .conv-delete:hover { color: #ff6b6b; }
+
+  /* ── Main chat area ──────────────────────────────────────── */
+  .main {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
   #chat-window {
     flex: 1;
     overflow-y: auto;
@@ -103,8 +228,6 @@
     display: flex;
     flex-direction: column;
     gap: 0;
-    position: relative;
-    z-index: 1;
     scroll-behavior: smooth;
   }
 
@@ -197,14 +320,13 @@
   }
 
   .input-area {
-    position: relative;
-    z-index: 1;
     padding: 16px 28px 20px;
     border-top: 1px solid var(--border);
     background: var(--bg);
     display: flex;
     gap: 10px;
     align-items: flex-end;
+    flex-shrink: 0;
   }
 
   #message-input {
@@ -277,8 +399,6 @@
     letter-spacing: 1px;
     text-transform: uppercase;
     padding: 8px 28px 16px;
-    position: relative;
-    z-index: 1;
   }
 
   .system-msg::before, .system-msg::after {
@@ -298,8 +418,6 @@
     font-size: 12px;
     color: #ff6b6b;
     padding: 20px 28px;
-    position: relative;
-    z-index: 1;
   }
 
   .ended-overlay {
@@ -346,24 +464,42 @@
   <div class="status-dot" id="status-dot"></div>
 </header>
 
-<div id="chat-window">
-  <div class="system-msg">loading your session...</div>
-</div>
+<div class="app-layout">
 
-<div class="input-area">
-  <button id="end-btn" onclick="endSession()">End Session</button>
-  <textarea
-    id="message-input"
-    placeholder="Ask about your financial health..."
-    rows="1"
-    disabled
-  ></textarea>
-  <button id="send-btn" disabled onclick="sendMessage()">
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-      <line x1="22" y1="2" x2="11" y2="13"></line>
-      <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
-    </svg>
-  </button>
+  <!-- ── Sidebar: conversation threads ───────────────────── -->
+  <aside class="sidebar">
+    <div class="sidebar-header">
+      <span>Threads</span>
+      <button id="new-conv-btn" onclick="newConversation()">+ New</button>
+    </div>
+    <div id="conversation-list">
+      <!-- Populated by JS -->
+    </div>
+  </aside>
+
+  <!-- ── Main: chat window + input ───────────────────────── -->
+  <div class="main">
+    <div id="chat-window">
+      <div class="system-msg">loading your session...</div>
+    </div>
+
+    <div class="input-area">
+      <button id="end-btn" onclick="endSession()">End Session</button>
+      <textarea
+        id="message-input"
+        placeholder="Ask about your financial health..."
+        rows="1"
+        disabled
+      ></textarea>
+      <button id="send-btn" disabled onclick="sendMessage()">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="22" y1="2" x2="11" y2="13"></line>
+          <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+        </svg>
+      </button>
+    </div>
+  </div>
+
 </div>
 
 <script>
@@ -375,8 +511,11 @@
   const sendBtn = document.getElementById("send-btn");
   const endBtn = document.getElementById("end-btn");
   const statusDot = document.getElementById("status-dot");
+  const convList = document.getElementById("conversation-list");
 
   let firstName = "";
+  let currentConversationId = null;
+  let conversations = [];
 
   input.addEventListener("input", () => {
     input.style.height = "auto";
@@ -426,8 +565,14 @@
 
     const bubble = document.createElement("div");
     bubble.className = "bubble ai";
-    bubble.innerHTML = `<div class="typing-indicator"><span></span><span></span><span></span></div>`;
 
+    const indicator = document.createElement("div");
+    indicator.className = "typing-indicator";
+    indicator.appendChild(document.createElement("span"));
+    indicator.appendChild(document.createElement("span"));
+    indicator.appendChild(document.createElement("span"));
+
+    bubble.appendChild(indicator);
     row.appendChild(avatar);
     row.appendChild(bubble);
     chatWindow.appendChild(row);
@@ -453,42 +598,210 @@
     statusDot.classList.add("ended");
   }
 
+  // ── Format relative time for sidebar timestamps ───────────
+  function relativeTime(dateStr) {
+    const diff = Date.now() - new Date(dateStr).getTime();
+    const mins = Math.floor(diff / 60000);
+    if (mins < 1) return "just now";
+    if (mins < 60) return `${mins}m ago`;
+    const hrs = Math.floor(mins / 60);
+    if (hrs < 24) return `${hrs}h ago`;
+    return `${Math.floor(hrs / 24)}d ago`;
+  }
+
+  // ── Build trash icon SVG element ─────────────────────────
+  function makeTrashIcon() {
+    const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    svg.setAttribute("width", "12");
+    svg.setAttribute("height", "12");
+    svg.setAttribute("viewBox", "0 0 24 24");
+    svg.setAttribute("fill", "none");
+    svg.setAttribute("stroke", "currentColor");
+    svg.setAttribute("stroke-width", "2");
+    svg.setAttribute("stroke-linecap", "round");
+    svg.setAttribute("stroke-linejoin", "round");
+
+    const bar = document.createElementNS("http://www.w3.org/2000/svg", "polyline");
+    bar.setAttribute("points", "3 6 5 6 21 6");
+
+    const body = document.createElementNS("http://www.w3.org/2000/svg", "path");
+    body.setAttribute("d", "M19 6l-1 14H6L5 6");
+
+    const left = document.createElementNS("http://www.w3.org/2000/svg", "path");
+    left.setAttribute("d", "M10 11v6");
+
+    const right = document.createElementNS("http://www.w3.org/2000/svg", "path");
+    right.setAttribute("d", "M14 11v6");
+
+    svg.appendChild(bar);
+    svg.appendChild(body);
+    svg.appendChild(left);
+    svg.appendChild(right);
+    return svg;
+  }
+
+  // ── Render the sidebar conversation list ──────────────────
+  function renderConversations() {
+    convList.innerHTML = "";
+
+    conversations.forEach(conv => {
+      const item = document.createElement("div");
+      item.className = `conv-item${conv.id === currentConversationId ? " active" : ""}`;
+      item.dataset.id = conv.id;
+
+      // Info block: title + timestamp
+      const info = document.createElement("div");
+      info.className = "conv-info";
+
+      const title = document.createElement("div");
+      title.className = "conv-title";
+      title.textContent = conv.title; // textContent — never innerHTML for user data
+
+      const time = document.createElement("div");
+      time.className = "conv-time";
+      time.textContent = relativeTime(conv.updated_at);
+
+      info.appendChild(title);
+      info.appendChild(time);
+
+      // Delete button
+      const del = document.createElement("button");
+      del.className = "conv-delete";
+      del.title = "Delete conversation";
+      del.appendChild(makeTrashIcon());
+
+      // Select thread on row click
+      item.addEventListener("click", () => selectConversation(conv.id));
+
+      // Delete button — stop propagation so it doesn't trigger row click
+      del.addEventListener("click", (e) => {
+        e.stopPropagation();
+        deleteConversation(conv.id);
+      });
+
+      item.appendChild(info);
+      item.appendChild(del);
+      convList.appendChild(item);
+    });
+  }
+
+  // ── Fetch conversations from server ───────────────────────
+  async function loadConversations() {
+    const res = await fetch(`${SERVER_URL}/conversations/${clientId}`);
+    if (!res.ok) return;
+    const data = await res.json();
+    conversations = data.conversations || [];
+    renderConversations();
+  }
+
+  // ── Select and load messages for a thread ─────────────────
+  async function selectConversation(convId) {
+    currentConversationId = convId;
+    renderConversations();
+
+    chatWindow.innerHTML = "";
+    addSystemMsg("loading...");
+
+    const res = await fetch(`${SERVER_URL}/conversations/${convId}/messages?clientId=${clientId}`);
+    chatWindow.innerHTML = "";
+
+    if (!res.ok) {
+      addSystemMsg("failed to load messages");
+      return;
+    }
+
+    const data = await res.json();
+    const messages = data.messages || [];
+
+    if (messages.length === 0) {
+      // Empty thread — prompt the user to start
+      addSystemMsg("new conversation — ask anything");
+    } else {
+      addSystemMsg("session active");
+      messages.forEach(msg => {
+        const role = msg.role === "assistant" ? "ai" : "user";
+        appendMessage(role, msg.content, true);
+      });
+    }
+
+    enableChat();
+  }
+
+  // ── Create a new empty conversation ──────────────────────
+  async function newConversation() {
+    const res = await fetch(`${SERVER_URL}/conversations/${clientId}`, { method: "POST" });
+    if (!res.ok) return;
+    const data = await res.json();
+    conversations.unshift(data.conversation);
+    await selectConversation(data.conversation.id);
+    renderConversations();
+  }
+
+  // ── Delete a conversation (clientId used for ownership) ───
+  async function deleteConversation(convId) {
+    if (!confirm("Delete this conversation?")) return;
+
+    const res = await fetch(`${SERVER_URL}/conversations/${convId}`, {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ clientId })
+    });
+
+    if (!res.ok) return;
+
+    conversations = conversations.filter(c => c.id !== convId);
+
+    // If the deleted thread was active, switch to the next available one
+    if (convId === currentConversationId) {
+      currentConversationId = null;
+      chatWindow.innerHTML = "";
+      disableChat();
+      endBtn.style.display = "none";
+
+      if (conversations.length > 0) {
+        selectConversation(conversations[0].id);
+      } else {
+        addSystemMsg("no conversations — start a new one");
+      }
+    }
+
+    renderConversations();
+  }
+
   // ── Load session on page open ─────────────────────────────
   window.addEventListener("load", async () => {
     try {
       const res = await fetch(`${SERVER_URL}/session/${clientId}`);
 
       if (!res.ok) {
-        chatWindow.innerHTML = `<div class="error-msg">Session not found. Please contact your advisor to resend your report link.</div>`;
+        const errEl = document.createElement("div");
+        errEl.className = "error-msg";
+        errEl.textContent = "Session not found. Please contact your advisor to resend your report link.";
+        chatWindow.replaceChildren(errEl);
         return;
       }
 
       const data = await res.json();
       firstName = data.first_name || "";
-      chatWindow.innerHTML = "";
 
-      if (data.isReturning && data.history && data.history.length > 1) {
-        // ── Returning client — render full history ──────────
-        addSystemMsg("previous session");
+      // Load threads and auto-select the most recently updated one
+      await loadConversations();
 
-        data.history.forEach(msg => {
-          const role = msg.role === "assistant" ? "ai" : "user";
-          appendMessage(role, msg.content, true);
-        });
-
-        // Divider between old and new messages
-        addSystemMsg("returning session", true);
-
+      if (conversations.length > 0) {
+        selectConversation(conversations[0].id);
       } else {
-        // ── New client — show opening message only ──────────
+        // No threads yet — show opening message as a fallback
+        chatWindow.innerHTML = "";
         addSystemMsg("session active");
         appendMessage("ai", data.openingMessage);
+        enableChat();
       }
 
-      enableChat();
-
     } catch (err) {
-      chatWindow.innerHTML = `<div class="error-msg">Could not connect to server. Please try again later.</div>`;
+      const errEl = document.createElement("div");
+      errEl.className = "error-msg";
+      errEl.textContent = "Could not connect to server. Please try again later.";
+      chatWindow.replaceChildren(errEl);
       console.error(err);
     }
   });
@@ -509,12 +822,20 @@
       const res = await fetch(`${SERVER_URL}/chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ clientId, message })
+        body: JSON.stringify({ clientId, conversationId: currentConversationId, message })
       });
 
       const data = await res.json();
       removeTyping();
+
+      // Capture conversationId in case the server created one on the fly
+      if (data.conversationId) currentConversationId = data.conversationId;
+
       appendMessage("ai", data.reply || "No response received.");
+
+      // Refresh sidebar so the title and timestamp stay current
+      await loadConversations();
+
     } catch (err) {
       removeTyping();
       appendMessage("ai", "Connection error — please try again.");
@@ -541,14 +862,24 @@
 
     disableChat();
 
+    // Build the overlay with DOM methods — firstName is user data, avoid innerHTML
     const overlay = document.createElement("div");
     overlay.className = "ended-overlay";
-    overlay.innerHTML = `
-      <div class="ended-card">
-        <h2>Session Ended</h2>
-        <p>Thank you, ${firstName}.<br>Your session has ended. You may close this window.</p>
-      </div>
-    `;
+
+    const card = document.createElement("div");
+    card.className = "ended-card";
+
+    const h2 = document.createElement("h2");
+    h2.textContent = "Session Ended";
+
+    const p = document.createElement("p");
+    p.textContent = `Thank you, ${firstName}.`;
+    p.appendChild(document.createElement("br"));
+    p.appendChild(document.createTextNode("Your session has ended. You may close this window."));
+
+    card.appendChild(h2);
+    card.appendChild(p);
+    overlay.appendChild(card);
     document.body.appendChild(overlay);
   }
 </script>

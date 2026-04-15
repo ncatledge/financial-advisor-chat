@@ -88,6 +88,50 @@ function buildOpeningMessage(first_name, financial_score, improvement_areas) {
   return `Hello ${first_name}, your financial health score is ${financial_score}/100.\n\nKey areas to focus on:\n${areas}\n\nFeel free to ask me any questions or request suggestions for improvement.`;
 }
 
+// ── Product lookup tool ───────────────────────────────────
+// TODO: Enable once product catalog eligibility logic is finalized.
+// Called when the model decides a product recommendation is warranted.
+// Filters the catalog by carrier/band and the client's financial profile.
+//
+// async function getMatchingProducts(args, session) {
+//   let query = supabase
+//     .from("products")
+//     .select("sku, carrier, name, contract_rate, band")
+//     .eq("active", true);
+//
+//   if (args.carrier && args.carrier !== "any") {
+//     query = query.eq("carrier", args.carrier);
+//   }
+//
+//   const { data } = await query.limit(4);
+//   return data || [];
+// }
+//
+// ── Tool definition — passed to OpenAI on every /chat call ──
+// The model decides whether to call it; we never force-invoke it.
+//
+// const tools = [
+//   {
+//     type: "function",
+//     function: {
+//       name: "get_product_recommendations",
+//       description: `Retrieve insurance/financial products from the catalog.
+// Only call when the client asks about products or a specific product would directly help them.
+// Do NOT call for general financial advice.`,
+//       parameters: {
+//         type: "object",
+//         properties: {
+//           carrier: {
+//             type: "string",
+//             description: "Carrier name to filter by, or 'any' for all carriers."
+//           }
+//         },
+//         required: ["carrier"]
+//       }
+//     }
+//   }
+// ];
+
 // ── Supabase helpers ──────────────────────────────────────
 async function getSession(clientId) {
   const { data, error } = await supabase

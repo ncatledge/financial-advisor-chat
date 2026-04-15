@@ -142,13 +142,36 @@ app.post("/webhook/data", async (req, res) => {
     updated_at: new Date().toISOString()
   });
 
+  // Create the default first conversation for this client
+  const { data: existing } = await supabase
+    .from("conversations")
+    .select("id")
+    .eq("client_id", clientId)
+    .limit(1);
+
+  if (!existing || existing.length === 0) {
+    const { data: conv } = await supabase
+      .from("conversations")
+      .insert({ client_id: clientId, title: "Financial Overview" })
+      .select()
+      .single();
+
+    if (conv) {
+      await supabase.from("messages").insert({
+        conversation_id: conv.id,
+        role: "assistant",
+        content: openingMessage
+      });
+    }
+  }
+
   console.log(`✅ Session saved for: ${clientId} | Score: ${financial_score}/100`);
 
   const chatLink = `${BASE_URL}/chat/${clientId}`;
   return res.json({ success: true, chatLink });
 });
 
-// 📤 Load session for chat page — handles new and returning clients
+// 📤 Load session for chat page
 app.get("/session/:clientId", async (req, res) => {
   const { clientId } = req.params;
   const session = await getSession(clientId);
@@ -157,8 +180,6 @@ app.get("/session/:clientId", async (req, res) => {
     return res.status(404).json({ error: "Session not found" });
   }
 
-  // Returning = history has more than just the opening message
-  const isReturning = session.history && session.history.length > 1;
   const openingMessage = buildOpeningMessage(
     session.first_name,
     session.financial_score,
@@ -169,21 +190,137 @@ app.get("/session/:clientId", async (req, res) => {
     first_name: session.first_name,
     financial_score: session.financial_score,
     openingMessage,
-    history: session.history || [],
-    isReturning
   });
 });
 
-// 💬 Chat messages
+// 📋 List all conversations for a client
+app.get("/conversations/:clientId", async (req, res) => {
+  const { clientId } = req.params;
+
+  const session = await getSession(clientId);
+  if (!session) return res.status(404).json({ error: "Client not found" });
+
+  const { data, error } = await supabase
+    .from("conversations")
+    .select("id, title, created_at, updated_at")
+    .eq("client_id", clientId)
+    .order("updated_at", { ascending: false });
+
+  if (error) return res.status(500).json({ error: "Failed to load conversations" });
+
+  res.json({ conversations: data });
+});
+
+// ➕ Create a new conversation
+app.post("/conversations/:clientId", async (req, res) => {
+  const { clientId } = req.params;
+
+  const session = await getSession(clientId);
+  if (!session) return res.status(404).json({ error: "Client not found" });
+
+  const { data, error } = await supabase
+    .from("conversations")
+    .insert({ client_id: clientId, title: "New Conversation" })
+    .select()
+    .single();
+
+  if (error) return res.status(500).json({ error: "Failed to create conversation" });
+
+  res.json({ conversation: data });
+});
+
+// 🗑️ Delete a conversation (clientId must match)
+app.delete("/conversations/:conversationId", async (req, res) => {
+  const { conversationId } = req.params;
+  const { clientId } = req.body;
+
+  if (!clientId) return res.status(400).json({ error: "clientId required" });
+
+  // Verify this conversation belongs to the requesting client
+  const { data: conv, error: fetchError } = await supabase
+    .from("conversations")
+    .select("client_id")
+    .eq("id", conversationId)
+    .single();
+
+  if (fetchError || !conv) return res.status(404).json({ error: "Conversation not found" });
+  if (conv.client_id !== clientId) return res.status(403).json({ error: "Unauthorized" });
+
+  const { error } = await supabase
+    .from("conversations")
+    .delete()
+    .eq("id", conversationId);
+
+  if (error) return res.status(500).json({ error: "Failed to delete conversation" });
+
+  res.json({ success: true });
+});
+
+// 📨 Load messages for a conversation
+app.get("/conversations/:conversationId/messages", async (req, res) => {
+  const { conversationId } = req.params;
+  const { clientId } = req.query;
+
+  if (!clientId) return res.status(400).json({ error: "clientId required" });
+
+  // Verify ownership
+  const { data: conv, error: fetchError } = await supabase
+    .from("conversations")
+    .select("client_id")
+    .eq("id", conversationId)
+    .single();
+
+  if (fetchError || !conv) return res.status(404).json({ error: "Conversation not found" });
+  if (conv.client_id !== clientId) return res.status(403).json({ error: "Unauthorized" });
+
+  const { data, error } = await supabase
+    .from("messages")
+    .select("id, role, content, created_at")
+    .eq("conversation_id", conversationId)
+    .order("created_at", { ascending: true });
+
+  if (error) return res.status(500).json({ error: "Failed to load messages" });
+
+  res.json({ messages: data });
+});
+
+// 💬 Chat — scoped to a conversation
 app.post("/chat", async (req, res) => {
-  let { clientId, message } = req.body;
+  let { clientId, conversationId, message } = req.body;
   if (!clientId) clientId = "default-user";
   if (!message) return res.status(400).send("Missing chat message");
 
   const session = await getSession(clientId);
   if (!session) return res.status(400).send("Client financial data not found");
 
-  const history = session.history || [];
+  // If no conversationId, create a new thread
+  if (!conversationId) {
+    const { data: newConv } = await supabase
+      .from("conversations")
+      .insert({ client_id: clientId, title: "New Conversation" })
+      .select()
+      .single();
+    conversationId = newConv.id;
+  } else {
+    // Verify ownership
+    const { data: conv } = await supabase
+      .from("conversations")
+      .select("client_id")
+      .eq("id", conversationId)
+      .single();
+    if (!conv || conv.client_id !== clientId) {
+      return res.status(403).send("Unauthorized");
+    }
+  }
+
+  // Load existing messages for context
+  const { data: existingMessages } = await supabase
+    .from("messages")
+    .select("role, content")
+    .eq("conversation_id", conversationId)
+    .order("created_at", { ascending: true });
+
+  const history = existingMessages || [];
   history.push({ role: "user", content: message });
 
   const systemPrompt = `You are a financial health advisor AI.
@@ -213,21 +350,28 @@ STRICT RULES — you must follow these exactly:
     });
 
     const botReply = completion.choices[0].message.content;
-    history.push({ role: "assistant", content: botReply });
 
-    await saveSession({
-      client_id: clientId,
-      first_name: session.first_name,
-      income: session.income,
-      debt: session.debt,
-      savings: session.savings,
-      financial_score: session.financial_score,
-      improvement_areas: session.improvement_areas,
-      history,
-      updated_at: new Date().toISOString()
-    });
+    // Save user message + AI reply
+    await supabase.from("messages").insert([
+      { conversation_id: conversationId, role: "user", content: message },
+      { conversation_id: conversationId, role: "assistant", content: botReply }
+    ]);
 
-    res.json({ reply: botReply });
+    // Auto-title: use first user message (truncated)
+    if (history.length === 1) {
+      const title = message.length > 50 ? message.slice(0, 47) + "..." : message;
+      await supabase
+        .from("conversations")
+        .update({ title, updated_at: new Date().toISOString() })
+        .eq("id", conversationId);
+    } else {
+      await supabase
+        .from("conversations")
+        .update({ updated_at: new Date().toISOString() })
+        .eq("id", conversationId);
+    }
+
+    res.json({ reply: botReply, conversationId });
 
   } catch (err) {
     console.error(err);
@@ -235,7 +379,7 @@ STRICT RULES — you must follow these exactly:
   }
 });
 
-// 🔚 End session — keeps history in Supabase, just updates timestamp
+// 🔚 End session
 app.post("/end-session", async (req, res) => {
   const { clientId } = req.body;
 

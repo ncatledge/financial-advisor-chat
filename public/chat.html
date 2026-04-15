@@ -466,7 +466,7 @@
 
 <div class="app-layout">
 
-  <!-- ── Sidebar: conversation threads ───────────────────── -->
+  <!-- ── Sidebar: conversations ─────────────────────────── -->
   <aside class="sidebar">
     <div class="sidebar-header">
       <span>Conversations</span>
@@ -699,7 +699,7 @@
     renderConversations();
   }
 
-  // ── Select and load messages for a thread ─────────────────
+  // ── Select and load messages for a conversation ──────────
   async function selectConversation(convId) {
     currentConversationId = convId;
     renderConversations();
@@ -719,7 +719,7 @@
     const messages = data.messages || [];
 
     if (messages.length === 0) {
-      // Empty thread — prompt the user to start
+      // Empty conversation — prompt the user to start
       addSystemMsg("new conversation — ask anything");
     } else {
       addSystemMsg("session active");
@@ -756,7 +756,7 @@
 
     conversations = conversations.filter(c => c.id !== convId);
 
-    // If the deleted thread was active, switch to the next available one
+    // If the deleted conversation was active, switch to the next available one
     if (convId === currentConversationId) {
       currentConversationId = null;
       chatWindow.innerHTML = "";
@@ -789,13 +789,13 @@
       const data = await res.json();
       firstName = data.first_name || "";
 
-      // Load threads and auto-select the most recently updated one
+      // Load conversations and auto-select the most recently updated one
       await loadConversations();
 
       if (conversations.length > 0) {
         selectConversation(conversations[0].id);
       } else {
-        // No threads yet — show opening message as a fallback
+        // No conversations yet — show opening message as a fallback
         chatWindow.innerHTML = "";
         addSystemMsg("session active");
         appendMessage("ai", data.openingMessage);

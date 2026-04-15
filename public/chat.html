@@ -453,7 +453,25 @@
     font-size: 13px;
     color: var(--text-dim);
     line-height: 1.7;
+    margin-bottom: 24px;
   }
+
+  .resume-btn {
+    background: var(--accent);
+    color: #0a0a08;
+    border: none;
+    border-radius: 6px;
+    padding: 10px 24px;
+    font-family: var(--font-mono);
+    font-size: 12px;
+    font-weight: 500;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: opacity 0.15s;
+  }
+
+  .resume-btn:hover { opacity: 0.85; }
 </style>
 </head>
 <body>
@@ -880,12 +898,32 @@
     const p = document.createElement("p");
     p.textContent = `Thank you, ${firstName}.`;
     p.appendChild(document.createElement("br"));
-    p.appendChild(document.createTextNode("Your session has ended. You may close this window."));
+    p.appendChild(document.createTextNode("Your session has ended. You may close this window or resume below."));
+
+    const resumeBtn = document.createElement("button");
+    resumeBtn.className = "resume-btn";
+    resumeBtn.textContent = "Resume Session";
+    resumeBtn.addEventListener("click", resumeSession);
 
     card.appendChild(h2);
     card.appendChild(p);
+    card.appendChild(resumeBtn);
     overlay.appendChild(card);
     document.body.appendChild(overlay);
+  }
+
+  // ── Resume a previously ended session ────────────────────
+  function resumeSession() {
+    // Remove the ended overlay
+    const overlay = document.querySelector(".ended-overlay");
+    if (overlay) overlay.remove();
+
+    // Re-enable the chat and restore the status dot
+    input.disabled = false;
+    sendBtn.disabled = false;
+    endBtn.disabled = false;
+    statusDot.classList.remove("ended");
+    input.focus();
   }
 </script>
 </body>

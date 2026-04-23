@@ -287,7 +287,10 @@ async function saveSession(sessionObj) {
     .from("sessions")
     .upsert(sessionObj, { onConflict: "client_id" });
 
-  if (error) console.error("❌ Supabase save error:", error);
+  if (error) {
+    console.error("❌ Supabase save error:", error);
+    throw error;
+  }
 }
 
 // ── Routes ────────────────────────────────────────────────

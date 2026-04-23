@@ -377,71 +377,82 @@ app.post("/api/webhooks/cognito/fsa_record", async (req, res) => {
     return res.status(401).json({ error: "Unauthorized" });
   }
 
-  console.log("COGNITO RAW BODY:", JSON.stringify(req.body).slice(0, 500));
+  try {
+    console.log("COGNITO RAW BODY:", JSON.stringify(req.body).slice(0, 500));
 
-  const data = req.body || {};
-  const f = (...keys) => cognitoField(data, ...keys);
+    const data = req.body || {};
+    const f = (...keys) => cognitoField(data, ...keys);
 
-  const email       = (f("Client 1 Email") || "").toLowerCase().trim();
-  const clientId    = email || "default-user";
-  const fullName    = f("Client 1 Name") || "Client";
-  const first_name  = fullName.split(" ")[0];
+    const email       = (f("Client 1 Email") || "").toLowerCase().trim();
+    const clientId    = email || "default-user";
+    const fullName    = f("Client 1 Name") || "Client";
+    const first_name  = fullName.split(" ")[0];
 
-  const income          = Number(f("Total Monthly Income") ?? 0);
-  const debt            = Number(f("Estimated Total Debt") ?? 0);
-  const savings         = Number(f("Current Monthly Savings") ?? 0);
-  const financial_score = Number(f("TOTAL FINANCIAL SCORE") ?? 0);
+    const income          = Number(f("Total Monthly Income") ?? 0);
+    const debt            = Number(f("Estimated Total Debt") ?? 0);
+    const savings         = Number(f("Current Monthly Savings") ?? 0);
+    const financial_score = Number(f("TOTAL FINANCIAL SCORE") ?? 0);
 
-  const openingMessage = buildCognitoOpeningMessage(first_name, data);
+    const openingMessage = buildCognitoOpeningMessage(first_name, data);
 
-  await saveSession({
-    client_id:        clientId,
-    first_name,
-    income,
-    debt,
-    savings,
-    financial_score,
-    improvement_areas: [],
-    cognito_data:     data,
-    history:          [{ role: "assistant", content: openingMessage }],
-    updated_at:       new Date().toISOString()
-  });
+    await saveSession({
+      client_id:        clientId,
+      first_name,
+      income,
+      debt,
+      savings,
+      financial_score,
+      improvement_areas: [],
+      cognito_data:     data,
+      history:          [{ role: "assistant", content: openingMessage }],
+      updated_at:       new Date().toISOString()
+    });
 
-  let financialScoreConvId;
-  const { data: existingConv } = await supabase
-    .from("conversations")
-    .select("id")
-    .eq("client_id", clientId)
-    .eq("is_protected", true)
-    .limit(1)
-    .single();
-
-  if (existingConv) {
-    financialScoreConvId = existingConv.id;
-  } else {
-    const { data: newConv } = await supabase
+    let financialScoreConvId;
+    const { data: existingConv } = await supabase
       .from("conversations")
-      .insert({ client_id: clientId, title: "Financial Score", is_protected: true })
-      .select()
+      .select("id")
+      .eq("client_id", clientId)
+      .eq("is_protected", true)
+      .limit(1)
       .single();
-    financialScoreConvId = newConv.id;
+
+    if (existingConv) {
+      financialScoreConvId = existingConv.id;
+    } else {
+      const { data: newConv, error: convError } = await supabase
+        .from("conversations")
+        .insert({ client_id: clientId, title: "Financial Score", is_protected: true })
+        .select()
+        .single();
+      if (convError || !newConv) {
+        console.error("❌ Failed to create Financial Score conversation:", convError);
+      } else {
+        financialScoreConvId = newConv.id;
+      }
+    }
+
+    if (financialScoreConvId) {
+      await supabase.from("messages").insert({
+        conversation_id: financialScoreConvId,
+        role:            "assistant",
+        content:         openingMessage
+      });
+      await supabase
+        .from("conversations")
+        .update({ updated_at: new Date().toISOString() })
+        .eq("id", financialScoreConvId);
+    }
+
+    console.log(`✅ Cognito session saved: ${clientId} | Score: ${financial_score}/100`);
+
+    const chatLink = `${BASE_URL}/chat/${clientId}`;
+    return res.json({ success: true, chatLink });
+
+  } catch (err) {
+    console.error("❌ Cognito webhook error:", err);
+    return res.status(500).json({ error: "Internal server error", detail: err.message });
   }
-
-  await supabase.from("messages").insert({
-    conversation_id: financialScoreConvId,
-    role:            "assistant",
-    content:         openingMessage
-  });
-
-  await supabase
-    .from("conversations")
-    .update({ updated_at: new Date().toISOString() })
-    .eq("id", financialScoreConvId);
-
-  console.log(`✅ Cognito session saved: ${clientId} | Score: ${financial_score}/100`);
-
-  const chatLink = `${BASE_URL}/chat/${clientId}`;
-  return res.json({ success: true, chatLink });
 });
 
 // 📤 Load session for chat page

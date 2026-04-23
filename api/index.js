@@ -90,141 +90,141 @@ function buildOpeningMessage(first_name, financial_score, improvement_areas) {
 
 // ── Cognito helpers ───────────────────────────────────────
 
-// Strips null/undefined values from an object before sending to external services
+// Strips null/undefined/empty values before sending to external services
 function stripNulls(obj) {
   return Object.fromEntries(
     Object.entries(obj).filter(([, v]) => v !== null && v !== undefined && v !== "")
   );
 }
 
-// Normalizes keys so \xa0 (non-breaking space) in Cognito field names doesn't break lookups
-function normalizeKey(k) {
-  return k.replace(/\xa0/g, " ").trim();
-}
-
-function cognitoField(data, ...keys) {
-  const normalized = {};
-  for (const k in data) normalized[normalizeKey(k)] = data[k];
-  for (const key of keys) {
-    const val = normalized[normalizeKey(key)];
-    if (val !== undefined && val !== null && val !== "") return val;
-  }
-  return null;
+// Dot-path lookup for nested Cognito fields (e.g. "FinancialScores.TOTALFINANCIALSCORE")
+function cog(data, path) {
+  const val = path.split(".").reduce((obj, key) => obj?.[key], data);
+  return (val !== null && val !== undefined && val !== "") ? val : null;
 }
 
 function buildCognitoOpeningMessage(first_name, data) {
-  const f = (...keys) => cognitoField(data, ...keys) ?? "N/A";
+  const f = (path) => cog(data, path) ?? "N/A";
 
-  const score     = f("TOTAL FINANCIAL SCORE");
-  const incScore  = f("Income/Debt Subscore");
-  const invScore  = f("Investments Subscore");
-  const insScore  = f("Insurance Subscore");
-  const reScore   = f("Real Estate Subscore");
-  const retScore  = f("Retirement Planning Subscore");
+  const score    = f("FinancialScores.TOTALFINANCIALSCORE");
+  const incScore = f("FinancialScores.IncomeDebtSubscore");
+  const invScore = f("FinancialScores.InvestmentsSubscore");
+  const insScore = f("InsuranceSubscore");
+  const reScore  = f("FinancialScores.RealEstateSubscore");
+  const retScore = f("FinancialScores.RetirementPlanningSubscore");
 
   return `Hello ${first_name}, your comprehensive financial assessment is complete.\n\nOverall Score: ${score}/100\n• Income & Debt: ${incScore}\n• Investments: ${invScore}\n• Insurance: ${insScore}\n• Real Estate: ${reScore}\n• Retirement Planning: ${retScore}\n\nAsk me anything about your financial picture and I'll reference your full assessment data.`;
 }
 
 function buildCognitoSystemPrompt(session) {
   const d = session.cognito_data || {};
-  const f = (...keys) => cognitoField(d, ...keys) ?? "N/A";
+  const f = (path) => cog(d, path) ?? "N/A";
+  const pct = (path) => { const v = cog(d, path); return v != null ? `${Math.round(v * 100)}%` : "N/A"; };
 
   return `You are a financial health advisor AI with access to this client's complete financial assessment.
 
 Client: ${session.first_name}
-State: ${f("State of Residence")}
-Filing Status: ${f("Filing Status")}
-Age: ${f("Client Age")}
-Dependents: ${f("How many dependents do you have?")}
-Employment: ${f("Client 1 Employment Status")}
-Overall Financial Score: ${f("TOTAL FINANCIAL SCORE")}/100
+State: ${f("StateOfResidence.State")}
+Filing Status: ${f("FilingStatus")}
+Age: ${f("ClientAge")}
+Dependents: ${f("HowManyDependentsDoYouHave")}
+Employment: ${f("Client1EmploymentStatus")}
+Overall Financial Score: ${f("FinancialScores.TOTALFINANCIALSCORE")}/100
 
 ── Subscores ──
-Income/Debt: ${f("Income/Debt Subscore")}
-Investments: ${f("Investments Subscore")}
-Insurance: ${f("Insurance Subscore")}
-Real Estate: ${f("Real Estate Subscore")}
-Retirement Planning: ${f("Retirement Planning Subscore")}
+Income/Debt: ${f("FinancialScores.IncomeDebtSubscore")}
+Investments: ${f("FinancialScores.InvestmentsSubscore")}
+Insurance: ${f("InsuranceSubscore")}
+Real Estate: ${f("FinancialScores.RealEstateSubscore")}
+Retirement Planning: ${f("FinancialScores.RetirementPlanningSubscore")}
 
 ── Income & Cash Flow ──
-Total Monthly Income: $${f("Total Monthly Income")}
-Total Household Monthly Expenses: $${f("Total Household Monthly Expenses")}
-Monthly Cash Flow: $${f("Monthly Cash Flow")}
-Current Monthly Savings: $${f("Current Monthly Savings")}
-Savings Rate: ${f("Savings Rate")}
-Unassigned Cash Flow: $${f("Unassigned Cash Flow")}
-How much additional money could you save each month: $${f("How much additional money could you save each month?")}
+Total Monthly Income: $${f("TotalMonthlyIncome")}
+Total Household Monthly Expenses: $${f("MonthlyExpenses")}
+Monthly Cash Flow: $${f("MonthlyCashFlow")}
+Current Monthly Savings: $${f("CurrentMonthlySavings")}
+Savings Rate: ${pct("SavingsRate")}
+Unassigned Cash Flow: $${f("UnassignedCashFlow")}
+Additional savings capacity: $${f("HowMuchAdditionalMoneyCouldYouSaveEachMonth")}
+Tax-Deferred Contributions: $${f("MonthlyContributionsToTaxDeferredSavings")}
+Tax-Free Contributions: $${f("MonthlyTaxFreeContributions")}
+Taxable Contributions: $${f("MonthlyContributionsToTaxableAccounts")}
 
 ── Debt ──
-Estimated Total Debt: $${f("Estimated Total Debt")}
-DTI Ratio: ${f("DTI Ratio")}
-Average Credit Score: ${f("Average Credit Score")}
-Mortgage Balance: $${f("Mortgage Balance")}
-Credit Card Debt: $${f("Credit Card Debt")}
-Student Loans: $${f("Student Loans")}
-Auto Loans: $${f("Auto Loans")}
-Personal Loans: $${f("Personal Loans")}
-Home Equity Loan / HELOC: $${f("Home Equity Loan / HELOC")}
-Bad Debt: $${f("Bad Debt")}
-Good Debt: $${f("Good Debt")}
-True Net Worth: $${f("True Net Worth")}
+Estimated Total Debt: $${f("EstimatedTotalDebt")}
+DTI Ratio: ${pct("DTIRatio")}
+Average Credit Score: ${f("AverageCreditScore")}
+Mortgage Balance: $${f("MortgageBalance")}
+Credit Card Debt: $${f("CreditCardDebt")}
+Student Loans: $${f("StudentLoans")}
+Auto Loans: $${f("AutoLoans")}
+Personal Loans: $${f("PersonalLoans")}
+Home Equity Loan / HELOC: $${f("HomeEquityLoanHELOC")}
+Bad Debt: $${f("BadDebt")}
+Good Debt: $${f("GoodDebt")}
+True Net Worth: $${f("TrueNetWorth")}
 
 ── Assets ──
-Estimated Assets Total: $${f("Estimated Assets Total")}
-Total Gross Assets: $${f("Total Gross Assets")}
-Cash & Bank Accounts (balance): $${f("Cash & Bank Accounts")}
-Total Checking Account Balance: $${f("Total Checking Account Balance")}
-Total Savings Account Balance: $${f("Total Savings Account Balance")}
-Total High-Yield Savings Account Balance: $${f("Total High-Yield Savings Account Balance")}
-Real Estate Equity: $${f("Real Estate Equity")}
-True Real Estate Equity: $${f("True Real Estate Equity")}
-Non-Retirement Investment Accounts: $${f("Non-Retirement Investment Accounts")}
-Total Brokerage Account Balance: $${f("Total Brokerage Account Balance")}
-Retirement Accounts (balance): $${f("Retirement Accounts")}
-Current Retirement Savings: $${f("Current Retirement Savings")}
-Business & Equity Interests: $${f("Business & Equity Interests")}
-529 Plan Balance: $${f("529 Plan Balance")}
-TotalClassifiedInvestableAssets: $${f("TotalClassifiedInvestableAssets")}
-Total in "At-Risk" Investments: $${f("Total in \"At-Risk\" Investments")}
-Total in "Non-Risk" Investments: $${f("Total in \"Non-Risk\" Investments")}
+Estimated Assets Total: $${f("EstimatedAssetsTotal")}
+Total Gross Assets: $${f("TotalGrossAssets")}
+Cash & Bank Accounts: $${f("CashBankAccounts2")}
+Total Checking: $${f("TotalCheckingAccountBalance")}
+Total Savings: $${f("TotalSavingsAccountBalance")}
+Total HYSA: $${f("TotalHighYieldSavingsAccountBalance")}
+Real Estate Equity: $${f("RealEstateEquity")}
+True Real Estate Equity: $${f("TrueRealEstateEquity")}
+Total Brokerage: $${f("TotalBrokerageAccountBalance")}
+Total Managed Investments: $${f("TotalManagedInvestmentBalance")}
+Crypto: $${f("TotalCryptoExchangeWalletBalance")}
+Current Retirement Savings: $${f("CurrentRetirementSavings")}
+Roth IRA: $${f("RothIRABalance")}
+Traditional IRA: $${f("TraditionalIRABalance")}
+401(k) Traditional: $${f("_401kTraditionalBalance")}
+401(k) Roth: $${f("_401kRothBalance")}
+HSA: $${f("HSABalance")}
+Pension: $${f("PensionDefinedPlanBalance")}
+529 Plan: $${f("_529PlanBalance")}
+Other Assets: $${f("OtherAssets")}
+Total Classified Investable Assets: $${f("TotalClassifiedInvestableAssets")}
+At-Risk Investments: $${f("TotalInAtRiskInvestments")}
+Non-Risk Investments: $${f("TotalInNonRiskInvestments")}
 
 ── Tax ──
-Tax Bracket (Percentage): ${f("Tax Bracket (Percentage)")}
-Tax Free Assets: $${f("Tax Free Assets")}
-Tax-Deferred Assets: $${f("Tax-Deferred Assets")}
-Taxable Assets: $${f("Taxable Assets")}
-Tax Diversification Score: ${f("Tax Diversification Score")}
-Tax Diversification Note: ${f("Tax Diversification Note")}
+Tax Bracket: ${pct("TaxBracketPercentage")}
+Tax-Free Assets: $${f("TaxFreeAssets")}
+Tax-Deferred Assets: $${f("TaxDeferredAssets")}
+Taxable Assets: $${f("TaxableAssets")}
+Tax Diversification Note: ${f("TaxDiversificationNote")}
 
 ── Insurance ──
-Insurance Score: ${f("Insurance Score")}
-Life Insurance Adequacy Score: ${f("Life Insurance Adequacy Score")}
-Disability Insurance Score: ${f("Disability Insurance Score")}
-LTC Insurance Score: ${f("LTC Insurance Score")}
-Client 1 Life Insurance: ${f("Client 1 Life Insurance")}
-Client 1 Life Insurance Type: ${f("Client 1 Life Insurance Type")}
-Client 1 Total Life Insurance Death Benefit: $${f("Client 1 Total Life Insurance Death Benefit")}
-Client 1 Cash Value: $${f("Client 1 Cash Value")}
-Client 1 Disability Insurance: ${f("Client 1 Disability Insurance")}
-Client 1 LTC Insurance: ${f("Client 1 LTC Insurance")}
+Insurance Score: ${f("InsuranceScore")}
+Life Insurance Adequacy Score: ${f("LifeInsuranceAdequacyScore")}
+Disability Insurance Score: ${f("DisabilityInsuranceScore")}
+LTC Insurance Score: ${f("LTCInsuranceScore")}
+Has Life Insurance: ${f("Client1LifeInsurance")}
+Life Insurance Type: ${f("Client1LifeInsuranceType")}
+Total Death Benefit: $${f("Client1TotalLifeInsuranceDeathBenefit")}
+Cash Value: $${f("Client1CashValue")}
+Has Disability Insurance: ${f("Client1DisabilityInsurance")}
+Has LTC Insurance: ${f("Client1LTCInsurance")}
 
 ── Retirement Planning ──
-Client 1 Desired Retirement Age: ${f("Client 1 Desired Retirement Age")}
-Client 1 Retirement Goal: ${f("Client 1 Retirement Goal")}
-Client 1 Years To Retirement: ${f("Client 1 Years To Retirement")}
-What is your desired monthly income after retirement: $${f("What is your desired monthly income after retirement?")}
-Total Projected Retirement Asset Pool: $${f("Total Projected Retirement Asset Pool")}
-Retirement Income Shortfall: $${f("Retirement Income Shortfall")}
-Total Estimated Social Security: $${f("Total Estimated Social Security")}
-Summary Display Label: ${f("Summary Display Label")}
-Retirement Readiness Score: ${f("Retirement Readiness Score")}
+Desired Retirement Age: ${f("Client1DesiredRetirementAge")}
+Retirement Goal: ${f("Client1RetirementGoal")}
+Years To Retirement: ${f("Client1YearsToRetirement")}
+Desired Monthly Retirement Income: $${f("WhatIsYourDesiredMonthlyIncomeAfterRetirement")}
+Projected Retirement Assets: $${f("TotalProjectedRetirementAssets")}
+Retirement Income Shortfall: $${f("RetirementIncomeShortfall")}
+Total Estimated Social Security: $${f("TotalEstimatedSocialSecurity")}
+Retirement Readiness Score: ${f("RetirementReadinessScore")}
+Retirement Summary: ${f("RetirementShortfallSummary")}
 
-── Advisor Notes ──
-Income/Debts Recommendations: ${f("Income/Debts Recommendations")}
-Retirement Recommendations: ${f("Retirement Recommendations")}
-Investment Recommendations: ${f("Investment Recommendations")}
-Insurance Recommendations: ${f("Insurance Recommendations")}
-Advisor Notes: ${f("Advisor Notes")}
+── Recommendations ──
+Income/Debt: ${f("PlannerNotesIncomeDebts.IncomeDebtsRecommendations")}
+Investments: ${f("PlannerNotesInvestments.InvestmentRecommendation")}
+Insurance: ${f("PlannerNotesInsurance.InsuranceRecommendations")}
+Retirement: ${f("PlannerNotesRetirement.RetirementRecommendations")}
+Advisor Notes: ${f("AdvisorNotes.AdvisorNotes")}
 
 STRICT RULES — follow exactly:
 - Respond in 2 sentences maximum, no exceptions
@@ -391,17 +391,16 @@ app.post("/api/webhooks/cognito/fsa_record", async (req, res) => {
     console.log("COGNITO RAW BODY:", JSON.stringify(req.body).slice(0, 500));
 
     const data = req.body || {};
-    const f = (...keys) => cognitoField(data, ...keys);
+    const f = (path) => cog(data, path);
 
-    const email       = (f("Client 1 Email") || "").toLowerCase().trim();
+    const email       = (f("Client1Email") || "").toLowerCase().trim();
     const clientId    = email || "default-user";
-    const fullName    = f("Client 1 Name") || "Client";
-    const first_name  = fullName.split(" ")[0];
+    const first_name  = f("Client1Name.First") || f("Client1Name.FirstAndLast")?.split(" ")[0] || "Client";
 
-    const income          = Number(f("Total Monthly Income") ?? 0);
-    const debt            = Number(f("Estimated Total Debt") ?? 0);
-    const savings         = Number(f("Current Monthly Savings") ?? 0);
-    const financial_score = Number(f("TOTAL FINANCIAL SCORE") ?? 0);
+    const income          = Number(f("TotalMonthlyIncome") ?? 0);
+    const debt            = Number(f("EstimatedTotalDebt") ?? 0);
+    const savings         = Number(f("CurrentMonthlySavings") ?? 0);
+    const financial_score = Number(f("FinancialScores.TOTALFINANCIALSCORE") ?? 0);
 
     const openingMessage = buildCognitoOpeningMessage(first_name, data);
 
@@ -464,130 +463,127 @@ app.post("/api/webhooks/cognito/fsa_record", async (req, res) => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(stripNulls({
           // Identity
-          email:                    clientId,
-          first_name:               first_name,
-          last_name:                (f("Client 1 Name") || "").split(" ").slice(1).join(" "),
-          full_name:                f("Client 1 Name"),
-          phone:                    f("Client 1 Phone"),
-          state:                    f("State of Residence"),
-          filing_status:            f("Filing Status"),
-          client_age:               f("Client Age"),
-          dependents:               f("How many dependents do you have?"),
-          employment_status:        f("Client 1 Employment Status"),
-          chat_link:                `${BASE_URL}/chat/${clientId}`,
+          email:                       clientId,
+          first_name:                  first_name,
+          last_name:                   f("Client1Name.Last"),
+          full_name:                   f("Client1Name.FirstAndLast"),
+          phone:                       f("Client1Phone"),
+          state:                       f("StateOfResidence.State"),
+          filing_status:               f("FilingStatus"),
+          client_age:                  f("ClientAge"),
+          dependents:                  f("HowManyDependentsDoYouHave"),
+          employment_status:           f("Client1EmploymentStatus"),
+          chat_link:                   `${BASE_URL}/chat/${clientId}`,
 
           // Scores
-          total_financial_score:    f("TOTAL FINANCIAL SCORE"),
-          income_debt_subscore:     f("Income/Debt Subscore"),
-          investments_subscore:     f("Investments Subscore"),
-          insurance_subscore:       f("Insurance Subscore"),
-          real_estate_subscore:     f("Real Estate Subscore"),
-          retirement_subscore:      f("Retirement Planning Subscore"),
+          total_financial_score:       f("FinancialScores.TOTALFINANCIALSCORE"),
+          income_debt_subscore:        f("FinancialScores.IncomeDebtSubscore"),
+          investments_subscore:        f("FinancialScores.InvestmentsSubscore"),
+          insurance_subscore:          f("InsuranceSubscore"),
+          real_estate_subscore:        f("FinancialScores.RealEstateSubscore"),
+          retirement_subscore:         f("FinancialScores.RetirementPlanningSubscore"),
 
           // Income & Cash Flow
-          total_monthly_income:     f("Total Monthly Income"),
-          total_household_expenses: f("Total Household Monthly Expenses"),
-          monthly_cash_flow:        f("Monthly Cash Flow"),
-          current_monthly_savings:  f("Current Monthly Savings"),
-          savings_rate:             f("Savings Rate"),
-          unassigned_cash_flow:     f("Unassigned Cash Flow"),
-          additional_savings:       f("How much additional money could you save each month?"),
-          tax_deferred_contributions: f("Monthly Contributions to Tax Deferred Savings"),
-          tax_free_contributions:   f("Monthly Contributions to Tax Free Accounts"),
-          taxable_contributions:    f("Monthly Contributions to Taxable Accounts"),
+          total_monthly_income:        f("TotalMonthlyIncome"),
+          total_household_expenses:    f("MonthlyExpenses"),
+          monthly_cash_flow:           f("MonthlyCashFlow"),
+          current_monthly_savings:     f("CurrentMonthlySavings"),
+          savings_rate:                f("SavingsRate"),
+          unassigned_cash_flow:        f("UnassignedCashFlow"),
+          additional_savings:          f("HowMuchAdditionalMoneyCouldYouSaveEachMonth"),
+          tax_deferred_contributions:  f("MonthlyContributionsToTaxDeferredSavings"),
+          tax_free_contributions:      f("MonthlyTaxFreeContributions"),
+          taxable_contributions:       f("MonthlyContributionsToTaxableAccounts"),
 
           // Debt
-          estimated_total_debt:     f("Estimated Total Debt"),
-          dti_ratio:                f("DTI Ratio"),
-          average_credit_score:     f("Average Credit Score"),
-          client1_credit_score:     f("Client 1 Credit Score"),
-          mortgage_balance:         f("Mortgage Balance"),
-          credit_card_debt:         f("Credit Card Debt"),
-          student_loans:            f("Student Loans"),
-          auto_loans:               f("Auto Loans"),
-          personal_loans:           f("Personal Loans"),
-          heloc:                    f("Home Equity Loan / HELOC"),
-          business_loans:           f("Business Loans"),
-          other_debt:               f("Other Debt"),
-          good_debt:                f("Good Debt"),
-          bad_debt:                 f("Bad Debt"),
-          true_net_worth:           f("True Net Worth"),
+          estimated_total_debt:        f("EstimatedTotalDebt"),
+          dti_ratio:                   f("DTIRatio"),
+          average_credit_score:        f("AverageCreditScore"),
+          client1_credit_score:        f("Client1CreditScore"),
+          mortgage_balance:            f("MortgageBalance"),
+          credit_card_debt:            f("CreditCardDebt"),
+          student_loans:               f("StudentLoans"),
+          auto_loans:                  f("AutoLoans"),
+          personal_loans:              f("PersonalLoans"),
+          heloc:                       f("HomeEquityLoanHELOC"),
+          business_loans:              f("BusinessLoans"),
+          other_debt:                  f("OtherDebt"),
+          good_debt:                   f("GoodDebt"),
+          bad_debt:                    f("BadDebt"),
+          true_net_worth:              f("TrueNetWorth"),
 
           // Assets
-          estimated_assets_total:   f("Estimated Assets Total"),
-          total_gross_assets:       f("Total Gross Assets"),
-          cash_bank_accounts:       f("Cash & Bank Accounts"),
-          total_checking:           f("Total Checking Account Balance"),
-          total_savings:            f("Total Savings Account Balance"),
-          total_hysa:               f("Total High-Yield Savings Account Balance"),
-          total_money_market:       f("Total Money Market Account Balance"),
-          total_cd:                 f("Total CD Account Balance"),
-          real_estate_equity:       f("Real Estate Equity"),
-          true_real_estate_equity:  f("True Real Estate Equity"),
-          primary_residence_equity: f("Primary Residence Equity"),
-          rental_property_equity:   f("Rental Property Equity"),
-          brokerage_balance:        f("Total Brokerage Account Balance"),
-          managed_investment:       f("Total Managed Investment Balance"),
-          crypto_balance:           f("Total Crypto Exchange/Wallet  Balance"),
-          retirement_accounts_balance: f("Retirement Accounts"),
-          current_retirement_savings:  f("Current Retirement Savings"),
-          roth_ira:                 f("Roth IRA Balance"),
-          traditional_ira:          f("Traditional IRA Balance"),
-          k401_traditional:         f("401(k)(Traditional)  Balance"),
-          k401_roth:                f("401(k)(Roth)  Balance"),
-          hsa_balance:              f("HSA Balance"),
-          pension_balance:          f("Pension/Defined Plan Balance"),
-          plan529_balance:          f("529 Plan Balance"),
-          business_equity:          f("Business & Equity Interests"),
-          other_assets:             f("Other Assets"),
+          estimated_assets_total:      f("EstimatedAssetsTotal"),
+          total_gross_assets:          f("TotalGrossAssets"),
+          cash_bank_accounts:          f("CashBankAccounts2"),
+          total_checking:              f("TotalCheckingAccountBalance"),
+          total_savings:               f("TotalSavingsAccountBalance"),
+          total_hysa:                  f("TotalHighYieldSavingsAccountBalance"),
+          total_money_market:          f("TotalMoneyMarketAccountBalance"),
+          total_cd:                    f("TotalCDAccountBalance"),
+          real_estate_equity:          f("RealEstateEquity"),
+          true_real_estate_equity:     f("TrueRealEstateEquity"),
+          primary_residence_equity:    f("PrimaryResidenceEquity"),
+          rental_property_equity:      f("RentalPropertyEquity"),
+          brokerage_balance:           f("TotalBrokerageAccountBalance"),
+          managed_investment:          f("TotalManagedInvestmentBalance"),
+          crypto_balance:              f("TotalCryptoExchangeWalletBalance"),
+          current_retirement_savings:  f("CurrentRetirementSavings"),
+          roth_ira:                    f("RothIRABalance"),
+          traditional_ira:             f("TraditionalIRABalance"),
+          k401_traditional:            f("_401kTraditionalBalance"),
+          k401_roth:                   f("_401kRothBalance"),
+          hsa_balance:                 f("HSABalance"),
+          pension_balance:             f("PensionDefinedPlanBalance"),
+          plan529_balance:             f("_529PlanBalance"),
+          other_assets:                f("OtherAssets"),
           total_classified_investable: f("TotalClassifiedInvestableAssets"),
-          at_risk_investments:      f("Total in \"At-Risk\" Investments"),
-          non_risk_investments:     f("Total in \"Non-Risk\" Investments"),
+          at_risk_investments:         f("TotalInAtRiskInvestments"),
+          non_risk_investments:        f("TotalInNonRiskInvestments"),
 
           // Tax
-          tax_bracket:              f("Tax Bracket (Percentage)"),
-          tax_free_assets:          f("Tax Free Assets"),
-          tax_deferred_assets:      f("Tax-Deferred Assets"),
-          taxable_assets:           f("Taxable Assets"),
-          tax_diversification_score: f("Tax Diversification Score"),
-          tax_diversification_note: f("Tax Diversification Note"),
+          tax_bracket:                 f("TaxBracketPercentage"),
+          tax_free_assets:             f("TaxFreeAssets"),
+          tax_deferred_assets:         f("TaxDeferredAssets"),
+          taxable_assets:              f("TaxableAssets"),
+          tax_diversification_note:    f("TaxDiversificationNote"),
 
           // Insurance
-          insurance_score:          f("Insurance Score"),
-          life_insurance_adequacy:  f("Life Insurance Adequacy Score"),
-          disability_score:         f("Disability Insurance Score"),
-          ltc_score:                f("LTC Insurance Score"),
-          client1_life_insurance:   f("Client 1 Life Insurance"),
-          client1_insurance_type:   f("Client 1 Life Insurance Type"),
-          client1_death_benefit:    f("Client 1 Total Life Insurance Death Benefit"),
-          client1_cash_value:       f("Client 1 Cash Value"),
-          client1_disability:       f("Client 1 Disability Insurance"),
-          client1_ltc:              f("Client 1 LTC Insurance"),
+          insurance_score:             f("InsuranceScore"),
+          life_insurance_adequacy:     f("LifeInsuranceAdequacyScore"),
+          disability_score:            f("DisabilityInsuranceScore"),
+          ltc_score:                   f("LTCInsuranceScore"),
+          client1_life_insurance:      f("Client1LifeInsurance"),
+          client1_insurance_type:      f("Client1LifeInsuranceType"),
+          client1_death_benefit:       f("Client1TotalLifeInsuranceDeathBenefit"),
+          client1_cash_value:          f("Client1CashValue"),
+          client1_disability:          f("Client1DisabilityInsurance"),
+          client1_ltc:                 f("Client1LTCInsurance"),
 
           // Retirement
-          desired_retirement_age:   f("Client 1 Desired Retirement Age"),
-          retirement_goal:          f("Client 1 Retirement Goal"),
-          years_to_retirement:      f("Client 1 Years To Retirement"),
-          desired_retirement_income: f("What is your desired monthly income after retirement?"),
-          projected_retirement_pool: f("Total Projected Retirement Asset Pool"),
-          retirement_shortfall:     f("Retirement Income Shortfall"),
-          total_social_security:    f("Total Estimated Social Security"),
-          retirement_readiness:     f("Retirement Readiness Score"),
-          retirement_summary:       f("Summary Display Label"),
+          desired_retirement_age:      f("Client1DesiredRetirementAge"),
+          retirement_goal:             f("Client1RetirementGoal"),
+          years_to_retirement:         f("Client1YearsToRetirement"),
+          desired_retirement_income:   f("WhatIsYourDesiredMonthlyIncomeAfterRetirement"),
+          projected_retirement_assets: f("TotalProjectedRetirementAssets"),
+          retirement_shortfall:        f("RetirementIncomeShortfall"),
+          total_social_security:       f("TotalEstimatedSocialSecurity"),
+          retirement_readiness:        f("RetirementReadinessScore"),
+          retirement_summary:          f("RetirementShortfallSummary"),
 
           // Recommendations
-          income_debt_recommendations: f("Income/Debts Recommendations"),
-          investment_recommendations:  f("Investment Recommendations"),
-          insurance_recommendations:   f("Insurance Recommendations"),
-          retirement_recommendations:  f("Retirement Recommendations"),
-          advisor_notes:               f("Advisor Notes"),
+          income_debt_recommendations: f("PlannerNotesIncomeDebts.IncomeDebtsRecommendations"),
+          investment_recommendations:  f("PlannerNotesInvestments.InvestmentRecommendation"),
+          insurance_recommendations:   f("PlannerNotesInsurance.InsuranceRecommendations"),
+          retirement_recommendations:  f("PlannerNotesRetirement.RetirementRecommendations"),
+          advisor_notes:               f("AdvisorNotes.AdvisorNotes"),
 
           // Spouse/Client 2
-          client2_name:             f("Client 2 Name"),
-          client2_email:            f("Client 2 Email"),
-          client2_phone:            f("Client 2 Phone"),
-          client2_age:              f("Client 2 Age"),
-          client2_employment:       f("Client 2 Employment Status")
+          client2_name:                f("Client2Name.FirstAndLast"),
+          client2_email:               f("Client2Email"),
+          client2_phone:               f("Client2Phone"),
+          client2_age:                 f("Client2Age"),
+          client2_employment:          f("Client2EmploymentStatus")
         }))
       }).catch(err => console.error("❌ Make ping error:", err));
     }

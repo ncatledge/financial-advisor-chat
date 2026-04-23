@@ -90,6 +90,13 @@ function buildOpeningMessage(first_name, financial_score, improvement_areas) {
 
 // ── Cognito helpers ───────────────────────────────────────
 
+// Strips null/undefined values from an object before sending to external services
+function stripNulls(obj) {
+  return Object.fromEntries(
+    Object.entries(obj).filter(([, v]) => v !== null && v !== undefined && v !== "")
+  );
+}
+
 // Normalizes keys so \xa0 (non-breaking space) in Cognito field names doesn't break lookups
 function normalizeKey(k) {
   return k.replace(/\xa0/g, " ").trim();
@@ -448,6 +455,142 @@ app.post("/api/webhooks/cognito/fsa_record", async (req, res) => {
     }
 
     console.log(`✅ Cognito session saved: ${clientId} | Score: ${financial_score}/100`);
+
+    // Ping Make to create SuiteDash contact + trigger portal invite
+    // Sends full FSA payload so Make has all assessment data available
+    if (process.env.MAKE_SUITEDASH_WEBHOOK) {
+      fetch(process.env.MAKE_SUITEDASH_WEBHOOK, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(stripNulls({
+          // Identity
+          email:                    clientId,
+          first_name:               first_name,
+          last_name:                (f("Client 1 Name") || "").split(" ").slice(1).join(" "),
+          full_name:                f("Client 1 Name"),
+          phone:                    f("Client 1 Phone"),
+          state:                    f("State of Residence"),
+          filing_status:            f("Filing Status"),
+          client_age:               f("Client Age"),
+          dependents:               f("How many dependents do you have?"),
+          employment_status:        f("Client 1 Employment Status"),
+          chat_link:                `${BASE_URL}/chat/${clientId}`,
+
+          // Scores
+          total_financial_score:    f("TOTAL FINANCIAL SCORE"),
+          income_debt_subscore:     f("Income/Debt Subscore"),
+          investments_subscore:     f("Investments Subscore"),
+          insurance_subscore:       f("Insurance Subscore"),
+          real_estate_subscore:     f("Real Estate Subscore"),
+          retirement_subscore:      f("Retirement Planning Subscore"),
+
+          // Income & Cash Flow
+          total_monthly_income:     f("Total Monthly Income"),
+          total_household_expenses: f("Total Household Monthly Expenses"),
+          monthly_cash_flow:        f("Monthly Cash Flow"),
+          current_monthly_savings:  f("Current Monthly Savings"),
+          savings_rate:             f("Savings Rate"),
+          unassigned_cash_flow:     f("Unassigned Cash Flow"),
+          additional_savings:       f("How much additional money could you save each month?"),
+          tax_deferred_contributions: f("Monthly Contributions to Tax Deferred Savings"),
+          tax_free_contributions:   f("Monthly Contributions to Tax Free Accounts"),
+          taxable_contributions:    f("Monthly Contributions to Taxable Accounts"),
+
+          // Debt
+          estimated_total_debt:     f("Estimated Total Debt"),
+          dti_ratio:                f("DTI Ratio"),
+          average_credit_score:     f("Average Credit Score"),
+          client1_credit_score:     f("Client 1 Credit Score"),
+          mortgage_balance:         f("Mortgage Balance"),
+          credit_card_debt:         f("Credit Card Debt"),
+          student_loans:            f("Student Loans"),
+          auto_loans:               f("Auto Loans"),
+          personal_loans:           f("Personal Loans"),
+          heloc:                    f("Home Equity Loan / HELOC"),
+          business_loans:           f("Business Loans"),
+          other_debt:               f("Other Debt"),
+          good_debt:                f("Good Debt"),
+          bad_debt:                 f("Bad Debt"),
+          true_net_worth:           f("True Net Worth"),
+
+          // Assets
+          estimated_assets_total:   f("Estimated Assets Total"),
+          total_gross_assets:       f("Total Gross Assets"),
+          cash_bank_accounts:       f("Cash & Bank Accounts"),
+          total_checking:           f("Total Checking Account Balance"),
+          total_savings:            f("Total Savings Account Balance"),
+          total_hysa:               f("Total High-Yield Savings Account Balance"),
+          total_money_market:       f("Total Money Market Account Balance"),
+          total_cd:                 f("Total CD Account Balance"),
+          real_estate_equity:       f("Real Estate Equity"),
+          true_real_estate_equity:  f("True Real Estate Equity"),
+          primary_residence_equity: f("Primary Residence Equity"),
+          rental_property_equity:   f("Rental Property Equity"),
+          brokerage_balance:        f("Total Brokerage Account Balance"),
+          managed_investment:       f("Total Managed Investment Balance"),
+          crypto_balance:           f("Total Crypto Exchange/Wallet  Balance"),
+          retirement_accounts_balance: f("Retirement Accounts"),
+          current_retirement_savings:  f("Current Retirement Savings"),
+          roth_ira:                 f("Roth IRA Balance"),
+          traditional_ira:          f("Traditional IRA Balance"),
+          k401_traditional:         f("401(k)(Traditional)  Balance"),
+          k401_roth:                f("401(k)(Roth)  Balance"),
+          hsa_balance:              f("HSA Balance"),
+          pension_balance:          f("Pension/Defined Plan Balance"),
+          plan529_balance:          f("529 Plan Balance"),
+          business_equity:          f("Business & Equity Interests"),
+          other_assets:             f("Other Assets"),
+          total_classified_investable: f("TotalClassifiedInvestableAssets"),
+          at_risk_investments:      f("Total in \"At-Risk\" Investments"),
+          non_risk_investments:     f("Total in \"Non-Risk\" Investments"),
+
+          // Tax
+          tax_bracket:              f("Tax Bracket (Percentage)"),
+          tax_free_assets:          f("Tax Free Assets"),
+          tax_deferred_assets:      f("Tax-Deferred Assets"),
+          taxable_assets:           f("Taxable Assets"),
+          tax_diversification_score: f("Tax Diversification Score"),
+          tax_diversification_note: f("Tax Diversification Note"),
+
+          // Insurance
+          insurance_score:          f("Insurance Score"),
+          life_insurance_adequacy:  f("Life Insurance Adequacy Score"),
+          disability_score:         f("Disability Insurance Score"),
+          ltc_score:                f("LTC Insurance Score"),
+          client1_life_insurance:   f("Client 1 Life Insurance"),
+          client1_insurance_type:   f("Client 1 Life Insurance Type"),
+          client1_death_benefit:    f("Client 1 Total Life Insurance Death Benefit"),
+          client1_cash_value:       f("Client 1 Cash Value"),
+          client1_disability:       f("Client 1 Disability Insurance"),
+          client1_ltc:              f("Client 1 LTC Insurance"),
+
+          // Retirement
+          desired_retirement_age:   f("Client 1 Desired Retirement Age"),
+          retirement_goal:          f("Client 1 Retirement Goal"),
+          years_to_retirement:      f("Client 1 Years To Retirement"),
+          desired_retirement_income: f("What is your desired monthly income after retirement?"),
+          projected_retirement_pool: f("Total Projected Retirement Asset Pool"),
+          retirement_shortfall:     f("Retirement Income Shortfall"),
+          total_social_security:    f("Total Estimated Social Security"),
+          retirement_readiness:     f("Retirement Readiness Score"),
+          retirement_summary:       f("Summary Display Label"),
+
+          // Recommendations
+          income_debt_recommendations: f("Income/Debts Recommendations"),
+          investment_recommendations:  f("Investment Recommendations"),
+          insurance_recommendations:   f("Insurance Recommendations"),
+          retirement_recommendations:  f("Retirement Recommendations"),
+          advisor_notes:               f("Advisor Notes"),
+
+          // Spouse/Client 2
+          client2_name:             f("Client 2 Name"),
+          client2_email:            f("Client 2 Email"),
+          client2_phone:            f("Client 2 Phone"),
+          client2_age:              f("Client 2 Age"),
+          client2_employment:       f("Client 2 Employment Status")
+        }))
+      }).catch(err => console.error("❌ Make ping error:", err));
+    }
 
     const chatLink = `${BASE_URL}/chat/${clientId}`;
     return res.json({ success: true, chatLink });

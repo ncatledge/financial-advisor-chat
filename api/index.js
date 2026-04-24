@@ -116,6 +116,127 @@ function buildCognitoOpeningMessage(first_name, data) {
   return `Hello ${first_name}, your comprehensive financial assessment is complete.\n\nOverall Score: ${score}/100\n• Income & Debt: ${incScore}\n• Investments: ${invScore}\n• Insurance: ${insScore}\n• Real Estate: ${reScore}\n• Retirement Planning: ${retScore}\n\nAsk me anything about your financial picture and I'll reference your full assessment data.`;
 }
 
+// Maps raw Cognito payload to a flat object using SuiteDash field names.
+// Only includes fields present in both Cognito and SuiteDash — nulls preserved
+// so Make has the full schema to build the contact from.
+function parseCognitoForSuiteDash(data, email) {
+  const f = (path) => cog(data, path);
+
+  return {
+    // Standard contact fields
+    first_name:                        f("Client1Name.First"),
+    last_name:                         f("Client1Name.Last"),
+    email,
+    phone:                             f("Client1Phone"),
+    state:                             f("StateOfResidence.State"),
+    // Scores
+    total_financial_score:             f("FinancialScores.TOTALFINANCIALSCORE"),
+    income_debt_subscore:              f("FinancialScores.IncomeDebtSubscore"),
+    investments_subscore:              f("FinancialScores.InvestmentsSubscore"),
+    insurance_subscore:                f("InsuranceSubscore"),
+    real_estate_subscore:              f("FinancialScores.RealEstateSubscore"),
+    retirement_planning_subscore:      f("FinancialScores.RetirementPlanningSubscore"),
+    dti_score:                         f("DTIRatio"),
+    // Income & savings
+    total_monthly_income:              f("TotalMonthlyIncome"),
+    total_monthly_debt:                f("TotalMonthlyDebt"),
+    total_monthly_savings:             f("CurrentMonthlySavings"),
+    willing_to_save:                   f("HowMuchAdditionalMoneyCouldYouSaveEachMonth"),
+    // Client info
+    client_age:                        f("ClientAge"),
+    credit_score:                      f("Client1CreditScore"),
+    children_count:                    f("HowManyDependentsDoYouHave"),
+    have_children:                     f("HaveChildren"),
+    retired:                           f("Retired"),
+    receiving_social_security:         f("ReceivingSocialSecurity"),
+    accredited_investor:               f("AccreditedInvestor"),
+    ppm:                               f("PPM"),
+    // Insurance
+    total_insurance_premiums:          f("TotalInsurancePremiums"),
+    life_insurance:                    f("Client1LifeInsurance"),
+    life_insurance_provider:           f("Client1LifeInsuranceProvider"),
+    type_of_policy:                    f("Client1LifeInsuranceType"),
+    type_permanent_policy:             f("Client1PermanentPolicyType"),
+    length_term_policy:                f("Client1TermPolicyLength"),
+    cash_surrender_value:              f("Client1CashValue"),
+    who_sold_policy:                   f("Client1WhoSoldPolicy"),
+    insurance_reasons:                 f("Client1InsuranceReasons"),
+    total_insurance_amount:            f("Client1TotalLifeInsuranceDeathBenefit"),
+    // Real estate
+    current_residence_status:          f("CurrentResidenceStatus"),
+    home_equity:                       f("PrimaryResidenceEquity"),
+    home_estimated_value:              f("HomeEstimatedValue"),
+    mortgage_payment:                  f("MortgagePayment"),
+    mortgage_interest_rate:            f("MortgageInterestRate"),
+    own_rental_properties:             f("OwnRentalProperties"),
+    total_rental_property_equity:      f("RentalPropertyEquity"),
+    total_cash_flow_rentals:           f("TotalCashFlowRentals"),
+    acquiring_rental:                  f("AcquiringRental"),
+    last_rental_interest_rate:         f("LastRentalInterestRate"),
+    buy_real_estate:                   f("BuyRealEstate"),
+    business_ownership_status:         f("BusinessOwnershipStatus"),
+    business_real_estate_purpose:      f("BusinessRealEstatePurpose"),
+    business_buy_real_estate:          f("BusinessBuyRealEstate"),
+    schedule_c_properties:             f("ScheduleCProperties"),
+    // Investments
+    total_at_risk_investments:         f("TotalInAtRiskInvestments"),
+    total_low_risk_investments:        f("TotalInNonRiskInvestments"),
+    checking_and_saving_balances:      f("CashBankAccounts2"),
+    investing_bitcoin_or_ethereum:     f("InvestingBitcoinOrEthereum"),
+    own_crypto:                        f("OwnCrypto"),
+    crypto_investment_amount:          f("TotalCryptoExchangeWalletBalance"),
+    // Retirement
+    irs_qualified_plan:                f("IRSQualifiedPlan"),
+    ira_401k_custodian:                f("IRA401kCustodian"),
+    k401_above_contributions:          f("401kAboveContributions"),
+    solo_401k:                         f("Solo401k"),
+    others_on_solo_401k_plan:          f("OthersOnSolo401kPlan"),
+    solo_401k_balance:                 f("Solo401kBalance"),
+    contributions_to_others_on_solo:   f("ContributionsToOthersOnSoloPlan"),
+    roth_ira_or_401k:                  f("RothIRAOr401k"),
+    retirement_goal:                   f("Client1YearsToRetirement"),
+    // Tax
+    estimated_tax_bracket:             f("TaxBracketPercentage"),
+    tax_future_prediction:             f("TaxFuturePrediction"),
+    tax_free_withdrawals:              f("TaxFreeWithdrawals"),
+    tax_free_assets:                   f("TaxFreeAssetsYesNo"),
+    will_or_trust:                     f("WillOrTrust"),
+    // Chat link & AI flag
+    financial_score_conversation:      `${BASE_URL}/chat/${email}`,
+    ai_conversation_bool:              0,
+    // Partner / Client 2
+    financial_partner:                 f("FinancialPartner"),
+    partner_email:                     f("Client2Email"),
+    partner_first_name:                f("Client2Name.First"),
+    partner_last_name:                 f("Client2Name.Last"),
+    partner_phone_number:              f("Client2Phone"),
+    partner_age:                       f("Client2Age"),
+    partner_credit_score:              f("Client2CreditScore"),
+    partner_retired:                   f("Client2Retired"),
+    partner_receiving_social_security: f("Client2ReceivingSocialSecurity"),
+    partner_accredited_investor:       f("Client2AccreditedInvestor"),
+    partner_irs_qualified_plan:        f("Client2IRSQualifiedPlan"),
+    partner_ira_401k_custodian:        f("Client2IRA401kCustodian"),
+    partner_401k_above_contributions:  f("Client2401kAboveContributions"),
+    partner_life_insurance:            f("Client2LifeInsurance"),
+    partner_life_insurance_provider:   f("Client2LifeInsuranceProvider"),
+    partner_type_of_policy:            f("Client2LifeInsuranceType"),
+    partner_type_permanent_policy:     f("Client2PermanentPolicyType"),
+    partner_length_term_policy:        f("Client2TermPolicyLength"),
+    partner_cash_surrender_value:      f("Client2CashValue"),
+    partner_total_insurance_amount:    f("Client2TotalLifeInsuranceDeathBenefit"),
+    partner_who_sold_policy:           f("Client2WhoSoldPolicy"),
+    partner_insurance_reasons:         f("Client2InsuranceReasons"),
+    partner_total_insurance_premiums:  f("Client2TotalInsurancePremiums"),
+    partner_retirement_goal:           f("Client2YearsToRetirement"),
+    partner_tax_future_prediction:     f("Client2TaxFuturePrediction"),
+    partner_tax_free_withdrawals:      f("Client2TaxFreeWithdrawals"),
+    partner_tax_free_assets:           f("Client2TaxFreeAssets"),
+    partner_will_or_trust:             f("Client2WillOrTrust"),
+    partner_roth_ira_or_401k:          f("Client2RothIRAOr401k"),
+  };
+}
+
 function buildCognitoSystemPrompt(session) {
   const d = session.cognito_data || {};
   const f = (path) => cog(d, path) ?? "N/A";
@@ -462,130 +583,7 @@ app.post("/api/webhooks/cognito/fsa_record", async (req, res) => {
       fetch(process.env.MAKE_SUITEDASH_WEBHOOK, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(stripNulls({
-          // Identity
-          email:                       email,
-          first_name:                  first_name,
-          last_name:                   f("Client1Name.Last"),
-          full_name:                   f("Client1Name.FirstAndLast"),
-          phone:                       f("Client1Phone"),
-          state:                       f("StateOfResidence.State"),
-          filing_status:               f("FilingStatus"),
-          client_age:                  f("ClientAge"),
-          dependents:                  f("HowManyDependentsDoYouHave"),
-          employment_status:           f("Client1EmploymentStatus"),
-          chat_link:                   `${BASE_URL}/chat/${clientId}`,
-
-          // Scores
-          total_financial_score:       f("FinancialScores.TOTALFINANCIALSCORE"),
-          income_debt_subscore:        f("FinancialScores.IncomeDebtSubscore"),
-          investments_subscore:        f("FinancialScores.InvestmentsSubscore"),
-          insurance_subscore:          f("InsuranceSubscore"),
-          real_estate_subscore:        f("FinancialScores.RealEstateSubscore"),
-          retirement_subscore:         f("FinancialScores.RetirementPlanningSubscore"),
-
-          // Income & Cash Flow
-          total_monthly_income:        f("TotalMonthlyIncome"),
-          total_household_expenses:    f("MonthlyExpenses"),
-          monthly_cash_flow:           f("MonthlyCashFlow"),
-          current_monthly_savings:     f("CurrentMonthlySavings"),
-          savings_rate:                f("SavingsRate"),
-          unassigned_cash_flow:        f("UnassignedCashFlow"),
-          additional_savings:          f("HowMuchAdditionalMoneyCouldYouSaveEachMonth"),
-          tax_deferred_contributions:  f("MonthlyContributionsToTaxDeferredSavings"),
-          tax_free_contributions:      f("MonthlyTaxFreeContributions"),
-          taxable_contributions:       f("MonthlyContributionsToTaxableAccounts"),
-
-          // Debt
-          estimated_total_debt:        f("EstimatedTotalDebt"),
-          dti_ratio:                   f("DTIRatio"),
-          average_credit_score:        f("AverageCreditScore"),
-          client1_credit_score:        f("Client1CreditScore"),
-          mortgage_balance:            f("MortgageBalance"),
-          credit_card_debt:            f("CreditCardDebt"),
-          student_loans:               f("StudentLoans"),
-          auto_loans:                  f("AutoLoans"),
-          personal_loans:              f("PersonalLoans"),
-          heloc:                       f("HomeEquityLoanHELOC"),
-          business_loans:              f("BusinessLoans"),
-          other_debt:                  f("OtherDebt"),
-          good_debt:                   f("GoodDebt"),
-          bad_debt:                    f("BadDebt"),
-          true_net_worth:              f("TrueNetWorth"),
-
-          // Assets
-          estimated_assets_total:      f("EstimatedAssetsTotal"),
-          total_gross_assets:          f("TotalGrossAssets"),
-          cash_bank_accounts:          f("CashBankAccounts2"),
-          total_checking:              f("TotalCheckingAccountBalance"),
-          total_savings:               f("TotalSavingsAccountBalance"),
-          total_hysa:                  f("TotalHighYieldSavingsAccountBalance"),
-          total_money_market:          f("TotalMoneyMarketAccountBalance"),
-          total_cd:                    f("TotalCDAccountBalance"),
-          real_estate_equity:          f("RealEstateEquity"),
-          true_real_estate_equity:     f("TrueRealEstateEquity"),
-          primary_residence_equity:    f("PrimaryResidenceEquity"),
-          rental_property_equity:      f("RentalPropertyEquity"),
-          brokerage_balance:           f("TotalBrokerageAccountBalance"),
-          managed_investment:          f("TotalManagedInvestmentBalance"),
-          crypto_balance:              f("TotalCryptoExchangeWalletBalance"),
-          current_retirement_savings:  f("CurrentRetirementSavings"),
-          roth_ira:                    f("RothIRABalance"),
-          traditional_ira:             f("TraditionalIRABalance"),
-          k401_traditional:            f("_401kTraditionalBalance"),
-          k401_roth:                   f("_401kRothBalance"),
-          hsa_balance:                 f("HSABalance"),
-          pension_balance:             f("PensionDefinedPlanBalance"),
-          plan529_balance:             f("_529PlanBalance"),
-          other_assets:                f("OtherAssets"),
-          total_classified_investable: f("TotalClassifiedInvestableAssets"),
-          at_risk_investments:         f("TotalInAtRiskInvestments"),
-          non_risk_investments:        f("TotalInNonRiskInvestments"),
-
-          // Tax
-          tax_bracket:                 f("TaxBracketPercentage"),
-          tax_free_assets:             f("TaxFreeAssets"),
-          tax_deferred_assets:         f("TaxDeferredAssets"),
-          taxable_assets:              f("TaxableAssets"),
-          tax_diversification_note:    f("TaxDiversificationNote"),
-
-          // Insurance
-          insurance_score:             f("InsuranceScore"),
-          life_insurance_adequacy:     f("LifeInsuranceAdequacyScore"),
-          disability_score:            f("DisabilityInsuranceScore"),
-          ltc_score:                   f("LTCInsuranceScore"),
-          client1_life_insurance:      f("Client1LifeInsurance"),
-          client1_insurance_type:      f("Client1LifeInsuranceType"),
-          client1_death_benefit:       f("Client1TotalLifeInsuranceDeathBenefit"),
-          client1_cash_value:          f("Client1CashValue"),
-          client1_disability:          f("Client1DisabilityInsurance"),
-          client1_ltc:                 f("Client1LTCInsurance"),
-
-          // Retirement
-          desired_retirement_age:      f("Client1DesiredRetirementAge"),
-          retirement_goal:             f("Client1RetirementGoal"),
-          years_to_retirement:         f("Client1YearsToRetirement"),
-          desired_retirement_income:   f("WhatIsYourDesiredMonthlyIncomeAfterRetirement"),
-          projected_retirement_assets: f("TotalProjectedRetirementAssets"),
-          retirement_shortfall:        f("RetirementIncomeShortfall"),
-          total_social_security:       f("TotalEstimatedSocialSecurity"),
-          retirement_readiness:        f("RetirementReadinessScore"),
-          retirement_summary:          f("RetirementShortfallSummary"),
-
-          // Recommendations
-          income_debt_recommendations: f("PlannerNotesIncomeDebts.IncomeDebtsRecommendations"),
-          investment_recommendations:  f("PlannerNotesInvestments.InvestmentRecommendation"),
-          insurance_recommendations:   f("PlannerNotesInsurance.InsuranceRecommendations"),
-          retirement_recommendations:  f("PlannerNotesRetirement.RetirementRecommendations"),
-          advisor_notes:               f("AdvisorNotes.AdvisorNotes"),
-
-          // Spouse/Client 2
-          client2_name:                f("Client2Name.FirstAndLast"),
-          client2_email:               f("Client2Email"),
-          client2_phone:               f("Client2Phone"),
-          client2_age:                 f("Client2Age"),
-          client2_employment:          f("Client2EmploymentStatus")
-        }))
+        body: JSON.stringify(parseCognitoForSuiteDash(data, email))
       }).catch(err => console.error("❌ Make ping error:", err));
     }
 

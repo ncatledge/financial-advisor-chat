@@ -289,10 +289,10 @@ async function getSession(clientId) {
   return data;
 }
 
-async function saveSession(sessionObj) {
+async function saveSession(sessionObj, conflictKey = "client_id") {
   const { error } = await supabase
     .from("sessions")
-    .upsert(sessionObj, { onConflict: "client_id" });
+    .upsert(sessionObj, { onConflict: conflictKey });
 
   if (error) {
     console.error("❌ Supabase save error:", error);
@@ -406,6 +406,7 @@ app.post("/api/webhooks/cognito/fsa_record", async (req, res) => {
 
     await saveSession({
       client_id:        clientId,
+      client_email:     email,
       first_name,
       income,
       debt,
@@ -415,7 +416,7 @@ app.post("/api/webhooks/cognito/fsa_record", async (req, res) => {
       cognito_data:     data,
       history:          [{ role: "assistant", content: openingMessage }],
       updated_at:       new Date().toISOString()
-    });
+    }, "client_email");
 
     let financialScoreConvId;
     const { data: existingConv } = await supabase
@@ -463,7 +464,7 @@ app.post("/api/webhooks/cognito/fsa_record", async (req, res) => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(stripNulls({
           // Identity
-          email:                       clientId,
+          email:                       email,
           first_name:                  first_name,
           last_name:                   f("Client1Name.Last"),
           full_name:                   f("Client1Name.FirstAndLast"),
@@ -593,6 +594,58 @@ app.post("/api/webhooks/cognito/fsa_record", async (req, res) => {
 
   } catch (err) {
     console.error("❌ Cognito webhook error:", err);
+    return res.status(500).json({ error: "Internal server error", detail: err.message });
+  }
+});
+
+// 📥 SuiteDash — receive UID after portal onboarding, promote it to client_id
+app.post("/webhook/suitedash", async (req, res) => {
+  const tokenId = req.query.token_id;
+  if (tokenId !== process.env.SUITEDASH_WEBHOOK_TOKEN) {
+    return res.status(401).json({ error: "Unauthorized" });
+  }
+
+  try {
+    const { email, suitedash_uid } = req.body;
+    if (!email || !suitedash_uid) {
+      return res.status(400).json({ error: "email and suitedash_uid required" });
+    }
+
+    const cleanEmail = email.toLowerCase().trim();
+
+    const { data: session, error: findError } = await supabase
+      .from("sessions")
+      .select("client_id")
+      .eq("client_email", cleanEmail)
+      .single();
+
+    if (findError || !session) {
+      return res.status(404).json({ error: "No session found for that email" });
+    }
+
+    const oldClientId = session.client_id;
+
+    const { error: sessionError } = await supabase
+      .from("sessions")
+      .update({ client_id: suitedash_uid, suitedash_id: suitedash_uid, updated_at: new Date().toISOString() })
+      .eq("client_email", cleanEmail);
+
+    if (sessionError) {
+      console.error("❌ Failed to update client_id:", sessionError);
+      return res.status(500).json({ error: "Failed to update session" });
+    }
+
+    // Cascade the new client_id to all conversations owned by the old id
+    await supabase
+      .from("conversations")
+      .update({ client_id: suitedash_uid })
+      .eq("client_id", oldClientId);
+
+    console.log(`✅ SuiteDash UID assigned: ${cleanEmail} → ${suitedash_uid}`);
+    return res.json({ success: true, chatLink: `${BASE_URL}/chat/${suitedash_uid}` });
+
+  } catch (err) {
+    console.error("❌ SuiteDash webhook error:", err);
     return res.status(500).json({ error: "Internal server error", detail: err.message });
   }
 });
